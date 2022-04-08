@@ -72,7 +72,7 @@ void setup()
     Serial.begin(115200);
 
     preferences = new Preferences();
-    preferences->begin("nukihub", false);
+    preferences->begin("blescanner", false);
     network = new Network(preferences);
     network->initialize();
 

@@ -1,3 +1,3 @@
 #pragma once
 
-#define nuki_hub_version "1.0"
+#define blescanner_hub_version "1.0"

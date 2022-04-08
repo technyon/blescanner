@@ -97,12 +97,12 @@ bool Network::reconnect()
         if(strlen(_mqttUser) == 0)
         {
             Serial.println(F("MQTT: Connecting without credentials"));
-            success = _mqttClient.connect("nukiHub");
+            success = _mqttClient.connect("blescanner");
         }
         else
         {
             Serial.print(F("MQTT: Connecting with user: ")); Serial.println(_mqttUser);
-            success = _mqttClient.connect("nukiHub", _mqttUser, _mqttPass);
+            success = _mqttClient.connect("blescanner", _mqttUser, _mqttPass);
         }
 
 
@@ -151,7 +151,7 @@ void Network::update()
 void Network::publishPresenceDetection(char *csv)
 {
     _presenceCsv = csv;
-    Serial.println(_presenceCsv);
+//    Serial.println(_presenceCsv);
 }
 
 void Network::publishFloat(const char* topic, const float value, const uint8_t precision)

@@ -14,7 +14,6 @@ include_directories(${PROJECT_NAME}
 
 file(GLOB SRCFILES
         Network.cpp
-        NukiWrapper.cpp
         MqttTopics.h
         WebCfgServer.cpp
         PresenceDetection.cpp

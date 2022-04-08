@@ -173,13 +173,13 @@ void WebCfgServer::buildHtml(String& response)
 {
     response.concat("<HTML>\n");
     response.concat("<HEAD>\n");
-    response.concat("<TITLE>NUKI Hub</TITLE>\n");
+    response.concat("<TITLE>BLE Scanner</TITLE>\n");
     response.concat("</HEAD>\n");
     response.concat("<BODY>\n");
     response.concat("<br><h3>Info</h3>\n");
 
     String version = "&nbsp;";
-    version.concat(nuki_hub_version);
+    version.concat(blescanner_hub_version);
 
     response.concat("<table>");
     printParameter(response, "MQTT Connected", _network->isMqttConnected() ? "&nbsp;Yes" : "&nbsp;No");
@@ -218,7 +218,7 @@ void WebCfgServer::buildCredHtml(String &response)
 {
     response.concat("<HTML>\n");
     response.concat("<HEAD>\n");
-    response.concat("<TITLE>NUKI Hub</TITLE>\n");
+    response.concat("<TITLE>BLE Scanner Hub</TITLE>\n");
     response.concat("</HEAD>\n");
     response.concat("<BODY>\n");
 
@@ -244,7 +244,7 @@ void WebCfgServer::buildConfirmHtml(String &response)
 {
     response.concat("<HTML>\n");
     response.concat("<HEAD>\n");
-    response.concat("<TITLE>NUKI Hub</TITLE>\n");
+    response.concat("<TITLE>BLE Scanner Hub</TITLE>\n");
     response.concat("<meta http-equiv=\"Refresh\" content=\"5; url=/\" />");
     response.concat("\n</HEAD>\n");
     response.concat("<BODY>\n");
