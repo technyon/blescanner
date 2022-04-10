@@ -27,14 +27,19 @@ public:
 
 
 private:
-    bool processArgs();
+    bool processArgs(String& message);
     void buildHtml(String& response);
     void buildCredHtml(String& response);
-    void buildConfirmHtml(String& response);
-    void printInputField(String& response, const char* token, const char* description, const char* value, size_t maxLength);
+    void buildConfirmHtml(String& response, const String &message, uint32_t redirectDelay = 5);
+    void buildConfigureWifiHtml(String& response);
+
+    void buildHtmlHeader(String& response);
+    void printInputField(String& response, const char* token, const char* description, const char* value, const size_t maxLength, const bool isPassword = false);
     void printInputField(String& response, const char* token, const char* description, const int value, size_t maxLength);
 
     void printParameter(String& response, const char* description, const char* value);
+
+    void waitAndProcess(const bool blocking, const uint32_t duration);
 
     WebServer server;
     Network* _network;

@@ -3,6 +3,7 @@
 #include <PubSubClient.h>
 #include <WiFiClient.h>
 #include <Preferences.h>
+#include "SpiffsCookie.h"
 
 class Network
 {
@@ -17,9 +18,9 @@ public:
 
     void publishPresenceDetection(char* csv);
 
-private:
-    void onMqttDataReceived(char*& topic, byte*& payload, unsigned int& length);
+    void restartAndConfigureWifi();
 
+private:
     void publishFloat(const char* topic, const float value, const uint8_t precision = 2);
     void publishInt(const char* topic, const int value);
     void publishBool(const char* topic, const bool value);
@@ -32,6 +33,7 @@ private:
     PubSubClient _mqttClient;
     WiFiClient _wifiClient;
     Preferences* _preferences;
+    SpiffsCookie _cookie;
 
     bool _mqttConnected = false;
 
@@ -42,8 +44,4 @@ private:
     char _mqttPass[31] = {0};
 
     char* _presenceCsv = nullptr;
-
-    bool _firstTunerStatePublish = true;
-
-    void (*_lockActionReceivedCallback)(const char* value) = NULL;
 };

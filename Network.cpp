@@ -18,11 +18,24 @@ void Network::initialize()
     //WiFiManager, Local intialization. Once its business is done, there is no need to keep it around
     WiFiManager wm;
 
-    // reset settings - wipe stored credentials for testing
-    // these are stored by the esp library
-    //wm.resetSettings();
+    std::vector<const char *> wm_menu;
+    wm_menu.push_back("wifi");
+    wm_menu.push_back("exit");
+    wm.setShowInfoUpdate(false);
+    wm.setMenu(wm_menu);
 
-    bool res = wm.autoConnect(); // password protected ap
+    bool res = false;
+
+    if(_cookie.isSet())
+    {
+        Serial.println(F("Opening WiFi configuration portal."));
+        _cookie.clear();
+        res = wm.startConfigPortal();
+    }
+    else
+    {
+        res = wm.autoConnect(); // password protected ap
+    }
 
     if(!res) {
         Serial.println(F("Failed to connect"));
@@ -152,6 +165,13 @@ void Network::publishPresenceDetection(char *csv)
 {
     _presenceCsv = csv;
 //    Serial.println(_presenceCsv);
+}
+
+void Network::restartAndConfigureWifi()
+{
+    _cookie.set();
+    delay(200);
+    ESP.restart();
 }
 
 void Network::publishFloat(const char* topic, const float value, const uint8_t precision)
