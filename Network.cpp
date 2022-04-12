@@ -12,6 +12,13 @@ Network::Network(Preferences* preferences)
 
 void Network::initialize()
 {
+    String hostname = _preferences->getString(preference_hostname);
+    if(hostname == "")
+    {
+        hostname = "blescanner";
+        _preferences->putString(preference_hostname, hostname);
+    }
+
     WiFi.mode(WIFI_STA); // explicitly set mode, esp defaults to STA+AP
     // it is a good practice to make sure your code sets wifi mode how you want it.
 
@@ -23,6 +30,7 @@ void Network::initialize()
     wm_menu.push_back("exit");
     wm.setShowInfoUpdate(false);
     wm.setMenu(wm_menu);
+    wm.setHostname(hostname);
 
     bool res = false;
 
@@ -42,10 +50,14 @@ void Network::initialize()
         return;
         // ESP.restart();
     }
-    else {
+    else
+    {
         //if you get here you have connected to the WiFi
-        Serial.println(F("connected...yeey :)"));
+        Serial.println(F("WiFi connected."));
     }
+
+    Serial.print(F("Host name: "));
+    Serial.println(hostname);
 
     const char* brokerAddr = _preferences->getString(preference_mqtt_broker).c_str();
     strcpy(_mqttBrokerAddr, brokerAddr);
@@ -110,12 +122,12 @@ bool Network::reconnect()
         if(strlen(_mqttUser) == 0)
         {
             Serial.println(F("MQTT: Connecting without credentials"));
-            success = _mqttClient.connect("blescanner");
+            success = _mqttClient.connect(_preferences->getString(preference_hostname).c_str());
         }
         else
         {
             Serial.print(F("MQTT: Connecting with user: ")); Serial.println(_mqttUser);
-            success = _mqttClient.connect("blescanner", _mqttUser, _mqttPass);
+            success = _mqttClient.connect(_preferences->getString(preference_hostname).c_str(), _mqttUser, _mqttPass);
         }
 
 
