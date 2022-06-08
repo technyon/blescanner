@@ -167,6 +167,7 @@ void Network::update()
     if(_presenceCsv != nullptr && strlen(_presenceCsv) > 0)
     {
         publishString(mqtt_topic_presence, _presenceCsv);
+//        Serial.println(_presenceCsv);
         _presenceCsv = nullptr;
     }
 
@@ -218,7 +219,11 @@ void Network::publishString(const char *topic, const char *value)
 {
     char path[200] = {0};
     buildMqttPath(topic, path);
-    _mqttClient.publish(path, value);
+//    Serial.println(path);
+//    Serial.println(_presenceCsv);
+
+//    _mqttClient.publish(path, value);
+    _mqttClient.publish_P(path, value, true);
 }
 
 

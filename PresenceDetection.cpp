@@ -37,10 +37,14 @@ void PresenceDetection::initialize()
 
 void PresenceDetection::update()
 {
-    vTaskDelay( 5000 / portTICK_PERIOD_MS);
+    delay(3000);
 
     if(_timeout < 0) return;
-    if(_devices.size() == 0) return;
+    if(_devices.size() == 0)
+    {
+        _network->publishPresenceDetection(";;");
+        return;
+    }
 
     memset(_csv, 0, presence_detection_buffer_size);
     _csvIndex = 0;
@@ -61,6 +65,8 @@ void PresenceDetection::update()
 
     _csv[_csvIndex-1] = 0x00;
 
+    Serial.print("Devices found: ");
+    Serial.println(_devices.size());
     _network->publishPresenceDetection(_csv);
 }
 
@@ -110,6 +116,8 @@ void PresenceDetection::onResult(NimBLEAdvertisedDevice *device)
     std::string addressStr = device->getAddress().toString();
     char addrArrComp[13] = {0};
 
+//    Serial.println(addressStr.c_str());
+
     addrArrComp[0] = addressStr.at(0);
     addrArrComp[1] = addressStr.at(1);
     addrArrComp[2] = addressStr.at(3);
@@ -128,6 +136,7 @@ void PresenceDetection::onResult(NimBLEAdvertisedDevice *device)
     auto it = _devices.find(addr);
     if(it == _devices.end())
     {
+
         PdDevice pdDevice;
 
         int i=0;
@@ -138,12 +147,19 @@ void PresenceDetection::onResult(NimBLEAdvertisedDevice *device)
             ++i;
         }
 
+        if(device->haveRSSI())
+        {
+            pdDevice.hasRssi = true;
+            pdDevice.rssi = device->getRSSI();
+        }
+
+        std::string nameStr = "-";
         if(device->haveName())
         {
             std::string nameStr = device->getName();
 
-            int i=0;
-            size_t len = nameStr.length();
+            i=0;
+            len = nameStr.length();
             while(i < len && i < sizeof(pdDevice.name)-1)
             {
                 pdDevice.name[i] = nameStr.at(i);
@@ -153,12 +169,6 @@ void PresenceDetection::onResult(NimBLEAdvertisedDevice *device)
             pdDevice.timestamp = millis();
 
             _devices[addr] = pdDevice;
-        }
-
-        if(device->haveRSSI())
-        {
-            pdDevice.hasRssi = true;
-            pdDevice.rssi = device->getRSSI();
         }
     }
     else
