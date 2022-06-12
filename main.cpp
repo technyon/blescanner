@@ -61,7 +61,7 @@ void setupTasks()
 {
     // configMAX_PRIORITIES is 25
 
-    xTaskCreatePinnedToCore(networkTask, "ntw", 32768, nullptr, 3, nullptr, 1);
+    xTaskCreatePinnedToCore(networkTask, "ntw", 65536, nullptr, 3, nullptr, 1);
     xTaskCreatePinnedToCore(presenceDetectionTask, "prdet", 16384, nullptr, 5, nullptr, 1);
     xTaskCreatePinnedToCore(bleScannerTask, "blescan", 16384, nullptr, 1, nullptr, 1);
     xTaskCreatePinnedToCore(checkMillisTask, "millis", 512, nullptr, 1, nullptr, 1);

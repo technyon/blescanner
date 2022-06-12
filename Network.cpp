@@ -109,6 +109,7 @@ void Network::initialize()
     Serial.print(F(":"));
     Serial.println(port);
     _mqttClient.setServer(_mqttBrokerAddr, port);
+    _mqttClient.setBufferSize(16384);
 }
 
 
@@ -219,11 +220,8 @@ void Network::publishString(const char *topic, const char *value)
 {
     char path[200] = {0};
     buildMqttPath(topic, path);
-//    Serial.println(path);
-//    Serial.println(_presenceCsv);
 
-//    _mqttClient.publish(path, value);
-    _mqttClient.publish_P(path, value, true);
+    _mqttClient.publish(path, value, true);
 }
 
 
