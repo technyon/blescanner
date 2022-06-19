@@ -35,6 +35,9 @@ private:
     Preferences* _preferences;
     SpiffsCookie _cookie;
 
+    String _wifiSSID = "";
+    String _wifiPSK = "";
+
     bool _mqttConnected = false;
 
     unsigned long _nextReconnect = 0;

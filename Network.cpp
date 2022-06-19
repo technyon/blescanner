@@ -56,6 +56,9 @@ void Network::initialize()
         Serial.println(F("WiFi connected."));
     }
 
+    _wifiSSID = wm.getWiFiSSID();
+    _wifiPSK = wm.getWiFiPass();
+
     Serial.print(F("Host name: "));
     Serial.println(hostname);
 
@@ -115,6 +118,22 @@ void Network::initialize()
 
 bool Network::reconnect()
 {
+    WiFi.disconnect();
+    WiFi.begin(_wifiSSID.c_str(), _wifiPSK.c_str());
+
+    unsigned long timeout = millis() + 5000;
+    while(WiFi.status() != WL_CONNECTED && millis() < timeout)
+    {
+        delay(100);
+    }
+
+    if(WiFi.status() != WL_CONNECTED)
+    {
+        Serial.println("Reconnect to WiFi failed");
+        return false;
+    }
+
+
     while (!_mqttClient.connected() && millis() > _nextReconnect)
     {
         Serial.println(F("Attempting MQTT connection"));
