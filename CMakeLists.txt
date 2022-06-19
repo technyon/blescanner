@@ -21,6 +21,7 @@ file(GLOB SRCFILES
         BleScanner.cpp
         BleInterfaces.h
         SpiffsCookie.cpp
+        Ota.cpp
         Version.h
         lib/ESP32_BLE_Arduino-1.0.1/src/*.cpp
         lib/ESP32_BLE_Arduino-1.0.1/src/*.h
@@ -52,6 +53,7 @@ target_link_arduino_libraries(${PROJECT_NAME}
         DNSServer
         Preferences
         SPIFFS
+        Update
 #        esp32
 #        Wire
 #        FS

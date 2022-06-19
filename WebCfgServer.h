@@ -3,6 +3,7 @@
 #include <Preferences.h>
 #include <WebServer.h>
 #include "Network.h"
+#include "Ota.h"
 
 enum class TokenType
 {
@@ -30,6 +31,7 @@ private:
     bool processArgs(String& message);
     void buildHtml(String& response);
     void buildCredHtml(String& response);
+    void buildOtaHtml(String& response);
     void buildConfirmHtml(String& response, const String &message, uint32_t redirectDelay = 5);
     void buildConfigureWifiHtml(String& response);
 
@@ -40,14 +42,17 @@ private:
     void printParameter(String& response, const char* description, const char* value);
 
     void waitAndProcess(const bool blocking, const uint32_t duration);
+    void handleOtaUpload();
 
-    WebServer server;
+    WebServer _server;
     Network* _network;
     Preferences* _preferences;
+    Ota _ota;
 
     bool _hasCredentials = false;
     char _credUser[20] = {0};
     char _credPassword[20] = {0};
+    uint32_t _transferredSize = 0;
 
     bool _enabled = true;
 };
