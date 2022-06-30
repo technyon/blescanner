@@ -48,8 +48,8 @@ void Network::initialize()
 
     if(!res) {
         Serial.println(F("Failed to connect"));
-        return;
-        // ESP.restart();
+        delay(1000);
+        ESP.restart();
     }
     else
     {

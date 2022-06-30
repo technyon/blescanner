@@ -90,18 +90,18 @@ void WebCfgServer::initialize()
             return _server.requestAuthentication();
         }
         String response = "";
-        buildConfirmHtml(response, "Restarting ESP.", 3);
+        buildOtaHtml(response);
         _server.send(200, "text/html", response);
-        waitAndProcess(true, 2000);
-        ESP.restart();
     });
     _server.on("/restart", [&]() {
         if (_hasCredentials && !_server.authenticate(_credUser, _credPassword)) {
             return _server.requestAuthentication();
         }
         String response = "";
-        buildOtaHtml(response);
+        buildConfirmHtml(response, "Restarting ESP.", 5);
         _server.send(200, "text/html", response);
+        waitAndProcess(true, 2000);
+        ESP.restart();
     });
     _server.on("/uploadota", HTTP_POST, [&]() {
         if (_hasCredentials && !_server.authenticate(_credUser, _credPassword)) {
