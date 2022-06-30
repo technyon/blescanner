@@ -2704,6 +2704,10 @@ void WiFiManager::setPreOtaUpdateCallback( std::function<void()> func ) {
   _preotaupdatecallback = func;
 }
 
+void WiFiManager::setDisconnectedCallback( std::function<void()> func ) {
+    _disconnectedcallback = func;
+}
+
 /**
  * set custom head html
  * custom element will be added to head, eg. new style tag etc.
@@ -3610,6 +3614,10 @@ String WiFiManager::WiFi_psk(bool persistent) const {
     // DEBUG_WM(DEBUG_VERBOSE,"[EVENT]",event);
     #endif
     if(event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED){
+    if(_disconnectedcallback != nullptr)
+    {
+      _disconnectedcallback();
+    }
     #ifdef WM_DEBUG_LEVEL
       DEBUG_WM(DEBUG_VERBOSE,F("[EVENT] WIFI_REASON: "),info.wifi_sta_disconnected.reason);
       #endif

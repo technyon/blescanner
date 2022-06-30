@@ -1,6 +1,5 @@
 #include "Network.h"
 #include "WiFi.h"
-#include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
 #include "Arduino.h"
 #include "MqttTopics.h"
 #include "PreferencesKeys.h"
@@ -8,7 +7,9 @@
 Network::Network(Preferences* preferences)
 : _mqttClient(_wifiClient),
   _preferences(preferences)
-{}
+{
+    _restartOnDisconnect = _preferences->getBool(preference_restart_on_disconnect);
+}
 
 void Network::initialize()
 {
@@ -23,14 +24,14 @@ void Network::initialize()
     // it is a good practice to make sure your code sets wifi mode how you want it.
 
     //WiFiManager, Local intialization. Once its business is done, there is no need to keep it around
-    WiFiManager wm;
 
     std::vector<const char *> wm_menu;
     wm_menu.push_back("wifi");
     wm_menu.push_back("exit");
-    wm.setShowInfoUpdate(false);
-    wm.setMenu(wm_menu);
-    wm.setHostname(hostname);
+    _wm.setConfigPortalTimeout(_restartOnDisconnect ? 60 * 3 : 60 * 30);
+    _wm.setShowInfoUpdate(false);
+    _wm.setMenu(wm_menu);
+    _wm.setHostname(hostname);
 
     bool res = false;
 
@@ -38,11 +39,11 @@ void Network::initialize()
     {
         Serial.println(F("Opening WiFi configuration portal."));
         _cookie.clear();
-        res = wm.startConfigPortal();
+        res = _wm.startConfigPortal();
     }
     else
     {
-        res = wm.autoConnect(); // password protected ap
+        res = _wm.autoConnect(); // password protected ap
     }
 
     if(!res) {
@@ -55,9 +56,6 @@ void Network::initialize()
         //if you get here you have connected to the WiFi
         Serial.println(F("WiFi connected."));
     }
-
-    _wifiSSID = wm.getWiFiSSID();
-    _wifiPSK = wm.getWiFiPass();
 
     Serial.print(F("Host name: "));
     Serial.println(hostname);
@@ -113,26 +111,26 @@ void Network::initialize()
     Serial.println(port);
     _mqttClient.setServer(_mqttBrokerAddr, port);
     _mqttClient.setBufferSize(16384);
+
+    if(_restartOnDisconnect)
+    {
+        _wm.setDisconnectedCallback([&]()
+        {
+            onDisconnected();
+        });
+    }
 }
 
 
 bool Network::reconnect()
 {
-    WiFi.disconnect();
-    WiFi.begin(_wifiSSID.c_str(), _wifiPSK.c_str());
-
-    unsigned long timeout = millis() + 5000;
-    while(WiFi.status() != WL_CONNECTED && millis() < timeout)
-    {
-        delay(100);
-    }
+    delay(3000);
 
     if(WiFi.status() != WL_CONNECTED)
     {
         Serial.println("Reconnect to WiFi failed");
         return false;
     }
-
 
     while (!_mqttClient.connected() && millis() > _nextReconnect)
     {
@@ -269,4 +267,12 @@ void Network::buildMqttPath(const char* path, char* outPath)
         ++offset;
     }
     outPath[i+1] = 0x00;
+}
+
+void Network::onDisconnected()
+{
+    if(millis() > 60000)
+    {
+        ESP.restart();
+    }
 }

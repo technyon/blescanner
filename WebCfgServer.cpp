@@ -90,6 +90,16 @@ void WebCfgServer::initialize()
             return _server.requestAuthentication();
         }
         String response = "";
+        buildConfirmHtml(response, "Restarting ESP.", 3);
+        _server.send(200, "text/html", response);
+        waitAndProcess(true, 2000);
+        ESP.restart();
+    });
+    _server.on("/restart", [&]() {
+        if (_hasCredentials && !_server.authenticate(_credUser, _credPassword)) {
+            return _server.requestAuthentication();
+        }
+        String response = "";
         buildOtaHtml(response);
         _server.send(200, "text/html", response);
     });
@@ -160,6 +170,11 @@ bool WebCfgServer::processArgs(String& message)
         else if(key == "HOSTNAME")
         {
             _preferences->putString(preference_hostname, value);
+            configChanged = true;
+        }
+        else if(key == "RSTDISC")
+        {
+            _preferences->putBool(preference_restart_on_disconnect, (value == "1"));
             configChanged = true;
         }
         else if(key == "PRDTMO")
@@ -241,6 +256,7 @@ void WebCfgServer::buildHtml(String& response)
     printInputField(response, "MQTTPASS", "MQTT Password", "*", 30, true);
     printInputField(response, "MQTTPATH", "MQTT Path", _preferences->getString(preference_mqtt_path).c_str(), 180);
     printInputField(response, "HOSTNAME", "Host name", _preferences->getString(preference_hostname).c_str(), 100);
+    printCheckBox(response, "RSTDISC", "Restart on disconnect", _preferences->getBool(preference_restart_on_disconnect));
     printInputField(response, "PRDTMO", "Presence detection timeout (seconds, -1 to disable)", _preferences->getInt(preference_presence_detection_timeout), 10);
     response.concat("</table>");
 
@@ -261,6 +277,11 @@ void WebCfgServer::buildHtml(String& response)
     response.concat("<br><br><h3>Firmware update</h3>");
     response.concat("<form method=\"get\" action=\"/ota\">");
     response.concat("<button type=\"submit\">Open</button>");
+    response.concat("</form>");
+
+    response.concat("<br><br><h3>Restart ESP</h3>");
+    response.concat("<form method=\"get\" action=\"/restart\">");
+    response.concat("<button type=\"submit\">Restart</button>");
     response.concat("</form>");
 
     response.concat("</BODY>\n");
@@ -386,6 +407,24 @@ void WebCfgServer::printInputField(String& response,
     char valueStr[20];
     itoa(value, valueStr, 10);
     printInputField(response, token, description, valueStr, maxLength);
+}
+
+void WebCfgServer::printCheckBox(String &response, const char *token, const char *description, const bool value)
+{
+    response.concat("<tr><td>");
+    response.concat(description);
+    response.concat("</td><td>");
+
+    response.concat("<INPUT TYPE=hidden NAME=\"");
+    response.concat(token);
+    response.concat("\" value=\"0\"");
+    response.concat("/>");
+
+    response.concat("<INPUT TYPE=checkbox NAME=\"");
+    response.concat(token);
+    response.concat("\" value=\"1\"");
+    response.concat(value ? " checked=\"checked\"" : "");
+    response.concat("/></td></tr>");
 }
 
 void WebCfgServer::printParameter(String& response, const char *description, const char *value)

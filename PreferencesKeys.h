@@ -8,6 +8,7 @@
 #define preference_hostname "hostname"
 #define preference_cred_user "crdusr"
 #define preference_cred_password "crdpass"
+#define preference_restart_on_disconnect "restdisc"
 #define preference_presence_detection_timeout "prdtimeout"
 
 

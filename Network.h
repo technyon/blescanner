@@ -4,6 +4,7 @@
 #include <WiFiClient.h>
 #include <Preferences.h>
 #include "SpiffsCookie.h"
+#include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
 
 class Network
 {
@@ -28,15 +29,14 @@ private:
 
     void buildMqttPath(const char* path, char* outPath);
 
+    void onDisconnected();
+
     bool reconnect();
 
     PubSubClient _mqttClient;
     WiFiClient _wifiClient;
     Preferences* _preferences;
     SpiffsCookie _cookie;
-
-    String _wifiSSID = "";
-    String _wifiPSK = "";
 
     bool _mqttConnected = false;
 
@@ -45,6 +45,8 @@ private:
     char _mqttPath[181] = {0};
     char _mqttUser[31] = {0};
     char _mqttPass[31] = {0};
+    bool _restartOnDisconnect = false;
+    WiFiManager _wm;
 
     char* _presenceCsv = nullptr;
 };
