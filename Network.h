@@ -22,10 +22,17 @@ public:
     void restartAndConfigureWifi();
 
 private:
+    static Network* _inst;
+
+    static void onMqttDataReceivedCallback(char* topic, byte* payload, unsigned int length);
+    void onMqttDataReceived(char*& topic, byte*& payload, unsigned int& length);
+    bool comparePrefixedPath(const char* fullPath, const char* subPath);
+
     void publishFloat(const char* topic, const float value, const uint8_t precision = 2);
     void publishInt(const char* topic, const int value);
     void publishBool(const char* topic, const bool value);
     void publishString(const char* topic, const char* value);
+    void subscribe(const char* path);
 
     void buildMqttPath(const char* path, char* outPath);
 

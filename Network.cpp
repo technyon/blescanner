@@ -3,16 +3,22 @@
 #include "Arduino.h"
 #include "MqttTopics.h"
 #include "PreferencesKeys.h"
+#include "Pins.h"
+
+Network* Network::_inst = nullptr;
 
 Network::Network(Preferences* preferences)
 : _mqttClient(_wifiClient),
   _preferences(preferences)
 {
+    _inst = this;
     _restartOnDisconnect = _preferences->getBool(preference_restart_on_disconnect);
 }
 
 void Network::initialize()
 {
+    pinMode(gpio_out_a, OUTPUT);
+
     String hostname = _preferences->getString(preference_hostname);
     if(hostname == "")
     {
@@ -111,6 +117,7 @@ void Network::initialize()
     Serial.println(port);
     _mqttClient.setServer(_mqttBrokerAddr, port);
     _mqttClient.setBufferSize(16384);
+    _mqttClient.setCallback(Network::onMqttDataReceivedCallback);
 
     if(_restartOnDisconnect)
     {
@@ -149,10 +156,12 @@ bool Network::reconnect()
         }
 
 
-        if (success) {
+        if (success)
+        {
             Serial.println(F("MQTT connected"));
             _mqttConnected = true;
             delay(200);
+            subscribe(mqtt_topic_gpio_a);
         }
         else
         {
@@ -241,6 +250,12 @@ void Network::publishString(const char *topic, const char *value)
     _mqttClient.publish(path, value, true);
 }
 
+void Network::subscribe(const char *path)
+{
+    char prefixedPath[500];
+    buildMqttPath(path, prefixedPath);
+    _mqttClient.subscribe(prefixedPath);
+}
 
 bool Network::isMqttConnected()
 {
@@ -275,4 +290,33 @@ void Network::onDisconnected()
     {
         ESP.restart();
     }
+}
+
+void Network::onMqttDataReceivedCallback(char *topic, byte *payload, unsigned int length)
+{
+    _inst->onMqttDataReceived(topic, payload, length);
+}
+
+void Network::onMqttDataReceived(char *&topic, byte *&payload, unsigned int &length)
+{
+    char value[50] = {0};
+    size_t l = min(length, sizeof(value)-1);
+
+    for(int i=0; i<l; i++)
+    {
+        value[i] = payload[i];
+    }
+
+    if(comparePrefixedPath(topic, mqtt_topic_gpio_a))
+    {
+        bool enabled = strcmp("1", value) == 0;
+        digitalWrite(gpio_out_a, enabled ? HIGH : LOW);
+    }
+}
+
+bool Network::comparePrefixedPath(const char *fullPath, const char *subPath)
+{
+    char prefixedPath[500];
+    buildMqttPath(subPath, prefixedPath);
+    return strcmp(fullPath, prefixedPath) == 0;
 }
