@@ -54,6 +54,7 @@ private:
     Network* _network;
     Preferences* _preferences;
     Ota _ota;
+    String _hostname;
 
     // escaped by https://www.cescaper.com/
     // source: https://cdn.jsdelivr.net/npm/@exampledev/new.css@1.1.2/new.min.css

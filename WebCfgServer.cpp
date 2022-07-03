@@ -11,6 +11,7 @@ WebCfgServer::WebCfgServer(Network* network, EthServer* ethServer, Preferences* 
   _allowRestartToPortal(allowRestartToPortal)
 {
     String str = _preferences->getString(preference_cred_user);
+    _hostname = _preferences->getString(preference_hostname);
 
     if(str.length() > 0)
     {
@@ -379,7 +380,9 @@ void WebCfgServer::buildConfirmHtml(String &response, const String &message, uin
 
     response.concat("<HTML>\n");
     response.concat("<HEAD>\n");
-    response.concat("<TITLE>BLE Scanner</TITLE>\n");
+    response.concat("<TITLE>BLE Scanner - ");
+    response.concat(_hostname);
+    response.concat("</TITLE>\n");
     response.concat("<meta http-equiv=\"Refresh\" content=\"");
     response.concat(redirectDelay);
     response.concat("; url=/\" />");
@@ -406,7 +409,9 @@ void WebCfgServer::buildHtmlHeader(String &response)
     response.concat("<HTML><HEAD>");
     response.concat("<meta name='viewport' content='width=device-width, initial-scale=1'>");
     response.concat("<link rel='stylesheet' href='/inter.css'><link rel='stylesheet' href='/new.css'>");
-    response.concat("<TITLE>BLE Scanner</TITLE></HEAD><BODY>");
+    response.concat("<TITLE>BLE Scanner - ");
+    response.concat(_hostname);
+    response.concat("</TITLE></HEAD><BODY>");
 }
 
 void WebCfgServer::printInputField(String& response,
