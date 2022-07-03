@@ -24,6 +24,7 @@
 #include "nimble/nimble/host/include/host/ble_sm.h"
 #include "ble_hs_priv.h"
 
+#if NIMBLE_BLE_CONNECT
 #if MYNEWT_VAL(BLE_SM_LEGACY)
 
 /**
@@ -50,7 +51,7 @@ static const uint8_t ble_sm_lgcy_init_ioa[5 /*resp*/ ][5 /*init*/ ] =
 /* This is the responder passkey action action depending on the io
  * capabilities of both parties
  */
-static const uint8_t ble_sm_lgcy_resp_ioa[5 /*resp*/ ][5 /*initialize*/ ] =
+static const uint8_t ble_sm_lgcy_resp_ioa[5 /*resp*/ ][5 /*init*/ ] =
 {
     {IOACT_NONE,    IOACT_NONE,   IOACT_DISP,  IOACT_NONE, IOACT_DISP},
     {IOACT_NONE,    IOACT_NONE,   IOACT_DISP,  IOACT_NONE, IOACT_DISP},
@@ -251,4 +252,5 @@ ble_sm_lgcy_random_rx(struct ble_sm_proc *proc, struct ble_sm_result *res)
     res->execute = 1;
 }
 
+#endif
 #endif

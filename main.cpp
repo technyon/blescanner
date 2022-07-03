@@ -1,26 +1,59 @@
 #include "Arduino.h"
-#include "Network.h"
+#include "Pins.h"
 #include "WebCfgServer.h"
 #include <FreeRTOS.h>
 #include "PreferencesKeys.h"
 #include "PresenceDetection.h"
-#include "BleScanner.h"
+#include "hardware/W5500EthServer.h"
+#include "hardware/WifiEthServer.h"
+#include "Gpio.h"
 
-#define ESP32
+Network* network = nullptr;
+Gpio* gpio = nullptr;
+WebCfgServer* webCfgServer = nullptr;
+BleScanner::Scanner* bleScanner = nullptr;
+PresenceDetection* presenceDetection = nullptr;
+Preferences* preferences = nullptr;
+EthServer* ethServer = nullptr;
 
-Network* network;
-WebCfgServer* webCfgServer;
-PresenceDetection* presenceDetection;
-Preferences* preferences;
-BleScanner* bleScanner;
+bool lockEnabled = false;
+bool openerEnabled = false;
 
 void networkTask(void *pvParameters)
 {
     while(true)
     {
-        network->update();
-        webCfgServer->update();
-        vTaskDelay( 100 / portTICK_PERIOD_MS);
+        int r = network->update();
+
+        switch(r)
+        {
+            // Network Device and MQTT is connected. Process all updates.
+            case 0:
+                network->update();
+                webCfgServer->update();
+                break;
+            case 1:
+                // Network Device is connected, but MQTT isn't. Call network->update() to allow MQTT reconnect and
+                // keep Webserver alive to allow user to reconfigure network settings
+                network->update();
+                webCfgServer->update();
+                break;
+                // Neither Network Devicce or MQTT is connected
+            default:
+                network->update();
+                break;
+        }
+
+        delay(50);
+    }
+}
+
+void bleScannerTask(void *pvParameters)
+{
+    while(true)
+    {
+        bleScanner->update();
+        delay(20);
     }
 }
 
@@ -32,20 +65,11 @@ void presenceDetectionTask(void *pvParameters)
     }
 }
 
-void bleScannerTask(void *pvParameters)
-{
-    while(true)
-    {
-        bleScanner->update();
-        vTaskDelay( 20 / portTICK_PERIOD_MS);
-    }
-}
-
 void checkMillisTask(void *pvParameters)
 {
     while(true)
     {
-        vTaskDelay( 60000 / portTICK_PERIOD_MS);
+        delay(60000);
         // millis() is about to overflow. Restart device to prevent problems with overflow
         if(millis() > (2^32) - 5 * 60000)
         {
@@ -61,27 +85,75 @@ void setupTasks()
 {
     // configMAX_PRIORITIES is 25
 
-    xTaskCreatePinnedToCore(networkTask, "ntw", 16384, nullptr, 3, nullptr, 1);
-    xTaskCreatePinnedToCore(presenceDetectionTask, "prdet", 16384, nullptr, 5, nullptr, 1);
-    xTaskCreatePinnedToCore(bleScannerTask, "blescan", 16384, nullptr, 1, nullptr, 1);
-    xTaskCreatePinnedToCore(checkMillisTask, "millis", 512, nullptr, 1, nullptr, 1);
+    xTaskCreatePinnedToCore(networkTask, "ntw", 8192, NULL, 3, NULL, 1);
+    xTaskCreate(bleScannerTask, "scan", 4096, NULL, 2, NULL);
+    xTaskCreate(presenceDetectionTask, "prdet", 768, NULL, 5, NULL);
+    xTaskCreate(checkMillisTask, "mlchk", 512, NULL, 1, NULL);
+}
+
+uint32_t getRandomId()
+{
+    uint8_t rnd[4];
+    for(int i=0; i<4; i++)
+    {
+        rnd[i] = random(255);
+    }
+    uint32_t deviceId;
+    memcpy(&deviceId, &rnd, sizeof(deviceId));
+    return deviceId;
+}
+
+void initEthServer(const NetworkDeviceType device)
+{
+    switch (device)
+    {
+        case NetworkDeviceType::W5500:
+            ethServer = new W5500EthServer(80);
+            break;
+        case NetworkDeviceType::WiFi:
+            ethServer = new WifiEthServer(80);
+            break;
+        default:
+            ethServer = new WifiEthServer(80);
+            break;
+    }
 }
 
 void setup()
 {
+    pinMode(NETWORK_SELECT, INPUT_PULLUP);
+
     Serial.begin(115200);
 
     preferences = new Preferences();
     preferences->begin("blescanner", false);
-    network = new Network(preferences);
+
+//    const NetworkDeviceType networkDevice = NetworkDeviceType::WiFi;
+    const NetworkDeviceType networkDevice = digitalRead(NETWORK_SELECT) == HIGH ? NetworkDeviceType::WiFi : NetworkDeviceType::W5500;
+
+    network = new Network(networkDevice, preferences);
     network->initialize();
 
-    webCfgServer = new WebCfgServer(network, preferences);
-    webCfgServer->initialize();
+    if(preferences->getBool(preference_gpio_enabled))
+    {
+        gpio = new Gpio(network);
+    }
 
-    bleScanner = new BleScanner();
-    bleScanner->initialize();
-    bleScanner->setScanDuration(5);
+    uint32_t deviceId = preferences->getUInt(preference_deviceId);
+    if(deviceId == 0)
+    {
+        deviceId = getRandomId();
+        preferences->putUInt(preference_deviceId, deviceId);
+    }
+
+    initEthServer(networkDevice);
+
+    bleScanner = new BleScanner::Scanner();
+    bleScanner->initialize("blescanner");
+    bleScanner->setScanDuration(10);
+
+    webCfgServer = new WebCfgServer(network, ethServer, preferences, networkDevice == NetworkDeviceType::WiFi);
+    webCfgServer->initialize();
 
     presenceDetection = new PresenceDetection(preferences, bleScanner, network);
     presenceDetection->initialize();

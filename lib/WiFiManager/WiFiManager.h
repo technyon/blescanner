@@ -253,6 +253,7 @@ class WiFiManager
     //called just before doing OTA update
     void          setPreOtaUpdateCallback( std::function<void()> func );
 
+    //called when WiFi has disconnected
     void          setDisconnectedCallback( std::function<void()> func );
 
     //sets timeout before AP,webserver loop ends and exits even if there has been no setup.

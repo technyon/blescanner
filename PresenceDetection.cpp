@@ -1,7 +1,7 @@
 #include "PresenceDetection.h"
 #include "PreferencesKeys.h"
 
-PresenceDetection::PresenceDetection(Preferences* preferences, BleScanner *bleScanner, Network* network)
+PresenceDetection::PresenceDetection(Preferences* preferences, BleScanner::Scanner *bleScanner, Network* network)
 : _preferences(preferences),
   _bleScanner(bleScanner),
   _network(network)
@@ -37,7 +37,7 @@ void PresenceDetection::initialize()
 
 void PresenceDetection::update()
 {
-    delay(3000);
+    delay(2000);
 
     if(_timeout < 0) return;
     if(_devices.size() == 0)
@@ -65,8 +65,8 @@ void PresenceDetection::update()
 
     _csv[_csvIndex-1] = 0x00;
 
-    Serial.print("Devices found: ");
-    Serial.println(_devices.size());
+//    Serial.print("Devices found: ");
+//    Serial.println(_devices.size());
     _network->publishPresenceDetection(_csv);
 }
 
@@ -109,7 +109,6 @@ void PresenceDetection::buildCsv(const PdDevice &device)
     _csv[_csvIndex] = '\n';
     _csvIndex++;
 }
-
 
 void PresenceDetection::onResult(NimBLEAdvertisedDevice *device)
 {

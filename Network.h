@@ -1,59 +1,66 @@
 #pragma once
 
-#include <PubSubClient.h>
-#include <WiFiClient.h>
 #include <Preferences.h>
-#include "SpiffsCookie.h"
-#include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
+#include <vector>
+#include <map>
+#include "networkDevices/NetworkDevice.h"
+#include "MqttReceiver.h"
+
+enum class NetworkDeviceType
+{
+    WiFi,
+    W5500
+};
 
 class Network
 {
 public:
-    explicit Network(Preferences* preferences);
-    virtual ~Network() = default;
+    explicit Network(const NetworkDeviceType networkDevice, Preferences* preferences);
 
     void initialize();
-    void update();
+    bool update();
+    void registerMqttReceiver(MqttReceiver* receiver);
+    void reconfigureDevice();
 
-    bool isMqttConnected();
+    void subscribe(const char* path);
+    void publishFloat(const char* topic, const float value, const uint8_t precision = 2);
+    void publishInt(const char* topic, const int value);
+    void publishUInt(const char* topic, const unsigned int value);
+    void publishBool(const char* topic, const bool value);
+    bool publishString(const char* topic, const char* value);
+    void publishPin(const char* topic, int value);
+    bool comparePrefixedPath(const char* fullPath, const char* subPath);
 
     void publishPresenceDetection(char* csv);
 
-    void restartAndConfigureWifi();
+    PubSubClient* mqttClient();
+    bool isMqttConnected();
 
 private:
-    static Network* _inst;
-
     static void onMqttDataReceivedCallback(char* topic, byte* payload, unsigned int length);
     void onMqttDataReceived(char*& topic, byte*& payload, unsigned int& length);
-    bool comparePrefixedPath(const char* fullPath, const char* subPath);
-
-    void publishFloat(const char* topic, const float value, const uint8_t precision = 2);
-    void publishInt(const char* topic, const int value);
-    void publishBool(const char* topic, const bool value);
-    void publishString(const char* topic, const char* value);
-    void subscribe(const char* path);
+    void setupDevice(const NetworkDeviceType hardware);
+    bool reconnect();
 
     void buildMqttPath(const char* path, char* outPath);
 
-    void onDisconnected();
-
-    bool reconnect();
-
-    PubSubClient _mqttClient;
-    WiFiClient _wifiClient;
+    static Network* _inst;
     Preferences* _preferences;
-    SpiffsCookie _cookie;
-
+    String _hostname;
+    NetworkDevice* _device = nullptr;
     bool _mqttConnected = false;
 
     unsigned long _nextReconnect = 0;
     char _mqttBrokerAddr[101] = {0};
-    char _mqttPath[181] = {0};
     char _mqttUser[31] = {0};
     char _mqttPass[31] = {0};
-    bool _restartOnDisconnect = false;
-    WiFiManager _wm;
-
+    char _mqttPath[181] = {0};
+    char _mqttPresencePrefix[181] = {0};
+    std::vector<String> _subscribedTopics;
+    int _networkTimeout = 0;
+    std::vector<MqttReceiver*> _mqttReceivers;
     char* _presenceCsv = nullptr;
+    std::map<const char*, int> _pinStates;
+
+    unsigned long _lastConnectedTs = 0;
 };

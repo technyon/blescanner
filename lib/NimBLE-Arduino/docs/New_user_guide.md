@@ -15,7 +15,7 @@ At the top of your application file add `#include NimBLEDevice.h`, this is the o
 ## Using the Library
 In order to perform any BLE tasks you must first initialize the library, this prepares the NimBLE stack to be ready for commands.  
 
-To do this you must call `NimBLEDevice::initialize("your device name here")`, the parameter passed is a character string containing the name you want to advertise.  
+To do this you must call `NimBLEDevice::init("your device name here")`, the parameter passed is a character string containing the name you want to advertise.  
 If you're not creating a server or do not want to advertise a name, simply pass an empty string for the parameter.  
 
 This can be called any time you wish to use BLE functions and does not need to be called from app_main(IDF) or setup(Arduino) but usually is.  
@@ -23,7 +23,7 @@ This can be called any time you wish to use BLE functions and does not need to b
 
 <a name="creating-a-server"></a>
 ## Creating a Server
-BLE servers perform 2 tasks, they advertise their existance for clients to find them and they provide services which contain information for the connecting client.  
+BLE servers perform 2 tasks, they advertise their existence for clients to find them and they provide services which contain information for the connecting client.  
 
 After initializing the NimBLE stack we create a server by calling `NimBLEDevice::createServer()`, this will create a server instance and return a pointer to it.  
 
@@ -41,7 +41,7 @@ For this example we will keep it simple and use a 16 bit value: ABCD.
 // void setup() in Arduino
 void app_main(void)  
 {
-    NimBLEDevice::initialize("NimBLE");
+    NimBLEDevice::init("NimBLE");
     
     NimBLEServer *pServer = NimBLEDevice::createServer();
     NimBLEService *pService = pServer->createService("ABCD");
@@ -83,7 +83,7 @@ The function call will simply be `pService->createCharacteristic("1234");`
 // void setup() in Arduino
 void app_main(void)
 {
-    NimBLEDevice::initialize("NimBLE");
+    NimBLEDevice::init("NimBLE");
     
     NimBLEServer *pServer = NimBLEDevice::createServer();
     NimBLEService *pService = pServer->createService("ABCD");
@@ -91,7 +91,7 @@ void app_main(void)
 }
 ```
 
-All that's left to do now is start the sevice, give the characteristic a value and start advertising for clients.  
+All that's left to do now is start the service, give the characteristic a value and start advertising for clients.  
 
 Fist we start the service by calling `NimBLEService::start()`.
 
@@ -117,7 +117,7 @@ That's it, this will be enough to create a BLE server with a service and a chara
 // void setup() in Arduino
 void app_main(void)
 {
-    NimBLEDevice::initialize("NimBLE");
+    NimBLEDevice::init("NimBLE");
     
     NimBLEServer *pServer = NimBLEDevice::createServer();
     NimBLEService *pService = pServer->createService("ABCD");
@@ -159,7 +159,7 @@ This call returns an instance of `NimBLEScanResults` when the scan completes whi
 // void setup() in Arduino
 void app_main(void)  
 {
-    NimBLEDevice::initialize("");
+    NimBLEDevice::init("");
     
     NimBLEScan *pScan = NimBLEDevice::getScan();
     NimBLEScanResults results = pScan->start(10);
@@ -214,7 +214,7 @@ for(int i = 0; i < results.getCount(); i++) {
     }
 }
 ```
-As shown, the call to `NimBLEClient::connect` should have it's eturn value tested to make sure it succeeded before proceeding to get data.  
+As shown, the call to `NimBLEClient::connect` should have it's return value tested to make sure it succeeded before proceeding to get data.  
 <br/>
 
 Next we need to access the servers data by asking it for the service and the characteristic we are interested in, then read the characteristic value. 
@@ -222,7 +222,7 @@ Next we need to access the servers data by asking it for the service and the cha
 To do this we call `NimBLEClient::getService`, which takes as a parameter the UUID of the service and returns  
 a pointer an instance to `NimBLERemoteService` or `nullptr` if the service was not found.  
 
-Next we will call `NimBLERemoteService::getCharateristic` which takes as a parameter the UUID of the service and returns  
+Next we will call `NimBLERemoteService::getCharacteristic` which takes as a parameter the UUID of the service and returns  
 a pointer to an instance of `NimBLERemoteCharacteristic` or `nullptr` if not found.  
 
 Finally we will read the characteristic value with `NimBLERemoteCharacteristic::readValue()`.  
@@ -299,7 +299,7 @@ Note that there is no need to disconnect as that will be done when deleting the 
 // void setup() in Arduino
 void app_main(void)  
 {
-    NimBLEDevice::initialize("");
+    NimBLEDevice::init("");
     
     NimBLEScan *pScan = NimBLEDevice::getScan();
     NimBLEScanResults results = pScan->start(10);
