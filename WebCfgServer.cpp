@@ -84,6 +84,16 @@ void WebCfgServer::initialize()
             _network->reconfigureDevice();
         }
     });
+    _server.on("/restart", [&]() {
+        String response = "";
+        buildConfirmHtml(response, "Restarting device, please wait.", 5);
+        _server.send(200, "text/html", response);
+        Serial.println(F("Restarting"));
+
+        waitAndProcess(true, 1000);
+        ESP.restart();
+    });
+
     _server.on("/method=get", [&]() {
         if (_hasCredentials && !_server.authenticate(_credUser, _credPassword)) {
             return _server.requestAuthentication();
@@ -299,6 +309,9 @@ void WebCfgServer::buildHtml(String& response)
         response.concat("<br><br><h3>WiFi</h3>");
         buildNavigationButton(response, "Restart and configure wifi", "/wifi");
     }
+
+    response.concat("<BR><BR><h3>Restart device</h3>");
+    buildNavigationButton(response, "Restart", "/restart");
 
     response.concat("</BODY></HTML>");
 }
