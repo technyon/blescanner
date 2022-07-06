@@ -19,11 +19,10 @@ include_directories(${PROJECT_NAME}
         lib/Crc16
         lib/NimBLE-Arduino/src
         lib/BleScanner/src
-        lib/ESP32_BLE_Arduino-1.0.1/src
         lib/WiFiManager
         lib/pubsubclient/src
         lib/WebServer/src
-        include
+        lib/Ethernet/src
 )
 
 file(GLOB SRCFILES
@@ -41,15 +40,12 @@ file(GLOB SRCFILES
         SpiffsCookie.cpp
         Gpio.cpp
         Version.h
-        include/RTOS.h
-        lib/ESP32_BLE_Arduino-1.0.1/src/*.cpp
-        lib/ESP32_BLE_Arduino-1.0.1/src/*.h
         lib/WiFiManager/WiFiManager.cpp
         lib/Crc16/Crc16.h
         lib/BleScanner/src/BleInterfaces.h
         lib/BleScanner/src/BleScanner.cpp
         lib/pubsubclient/src/PubSubClient.cpp
-)
+        )
 
 file(GLOB_RECURSE SRCFILESREC
         lib/NimBLE-Arduino/src/*.c
@@ -57,7 +53,9 @@ file(GLOB_RECURSE SRCFILESREC
         lib/NimBLE-Arduino/src/*.h
         lib/WebServer/src/*.cpp
         lib/WebServer/src/*.h
-)
+        lib/Ethernet/src/*.cpp
+        lib/Ethernet/src/*.h
+        )
 
 add_executable(${PROJECT_NAME}
         main.cpp
@@ -75,6 +73,7 @@ target_compile_definitions(${PROJECT_NAME}
 target_link_arduino_libraries(${PROJECT_NAME}
     PRIVATE
         core
+        BLE
         WiFi
         WiFiClientSecure
         Update
@@ -82,7 +81,7 @@ target_link_arduino_libraries(${PROJECT_NAME}
         DNSServer
         Preferences
         SPIFFS
-        Ethernet
+        SPI
 #        esp32
 #        Wire
 #        FS
