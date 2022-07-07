@@ -30,7 +30,6 @@ private:
     WiFiClient* _wifiClient = nullptr;
     WiFiClientSecure* _wifiClientSecure = nullptr;
     PubSubClient* _mqttClient = nullptr;
-    SpiffsCookie _cookie;
     bool _restartOnDisconnect = false;
 
     char _ca[TLS_CA_MAX_SIZE];

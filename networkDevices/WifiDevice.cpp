@@ -2,6 +2,8 @@
 #include "WifiDevice.h"
 #include "../PreferencesKeys.h"
 
+RTC_NOINIT_ATTR char WiFiDevice_reconfdetect[17];
+
 WifiDevice::WifiDevice(const String& hostname, Preferences* _preferences)
 : NetworkDevice(hostname)
 {
@@ -52,10 +54,12 @@ void WifiDevice::initialize()
 
     bool res = false;
 
-    if(_cookie.isSet())
+    WiFiDevice_reconfdetect[16] = 0x00;
+
+    if(strcmp(WiFiDevice_reconfdetect, "reconfigure_wifi") == 0)
     {
         Serial.println(F("Opening WiFi configuration portal."));
-        _cookie.clear();
+        memset(WiFiDevice_reconfdetect, 0, sizeof(WiFiDevice_reconfdetect));
         res = _wm.startConfigPortal();
     }
     else
@@ -86,7 +90,8 @@ void WifiDevice::initialize()
 
 void WifiDevice::reconfigure()
 {
-    _cookie.set();
+    strcpy(WiFiDevice_reconfdetect, "reconfigure_wifi");
+
     delay(200);
     ESP.restart();
 }
