@@ -85,6 +85,9 @@ void WebCfgServer::initialize()
         }
     });
     _server.on("/restart", [&]() {
+        if (_hasCredentials && !_server.authenticate(_credUser, _credPassword)) {
+            return _server.requestAuthentication();
+        }
         String response = "";
         buildConfirmHtml(response, "Restarting device, please wait.", 5);
         _server.send(200, "text/html", response);
