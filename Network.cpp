@@ -107,6 +107,13 @@ bool Network::update()
 {
     long ts = millis();
 
+    if(_lastPublishTs > 0 && (ts - _lastPublishTs > _networkTimeout * 1000))
+    {
+        Serial.println("Last publish timeout has been reached, restarting ...");
+        delay(200);
+        ESP.restart();
+    }
+
     _device->update();
 
     if(!_device->isConnected())
@@ -141,12 +148,11 @@ bool Network::update()
     if(_presenceCsv != nullptr && strlen(_presenceCsv) > 0)
     {
         bool success = publishString(mqtt_topic_presence, _presenceCsv);
-        if(!success)
+        if(success)
         {
-            Serial.println(F("Failed to publish presence CSV data."));
-            Serial.println(_presenceCsv);
+            _presenceCsv = nullptr;
+            _lastPublishTs = ts;
         }
-        _presenceCsv = nullptr;
     }
 
     for(const auto& pin : _pinStates)
