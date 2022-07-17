@@ -15,6 +15,9 @@ WebCfgServer::WebCfgServer(Network* network, EthServer* ethServer, Preferences* 
 
     if(str.length() > 0)
     {
+        memset(&_credUser, 0, sizeof(_credUser));
+        memset(&_credPassword, 0, sizeof(_credPassword));
+
         _hasCredentials = true;
         const char *user = str.c_str();
         memcpy(&_credUser, user, str.length());
@@ -28,6 +31,8 @@ WebCfgServer::WebCfgServer(Network* network, EthServer* ethServer, Preferences* 
 void WebCfgServer::initialize()
 {
     _server.on("/", [&]() {
+        Serial.print("Expected user    : "); Serial.println(_credUser);
+        Serial.print("Expected password: "); Serial.println(_credPassword);
         if (_hasCredentials && !_server.authenticate(_credUser, _credPassword)) {
             return _server.requestAuthentication();
         }
