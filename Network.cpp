@@ -107,12 +107,12 @@ bool Network::update()
 {
     unsigned long ts = millis();
 
-//    if(_lastPublishTs > 0 && (ts - _lastPublishTs > _networkTimeout * 1000))
-//    {
-//        Serial.println("Last publish timeout has been reached, restarting ...");
-//        delay(200);
-//        ESP.restart();
-//    }
+    if(_networkTimeout > 0 && _publishFailCount >= 5 )
+    {
+        Serial.println("Publish fail count has been reached, restarting ...");
+        delay(200);
+        ESP.restart();
+    }
 
     _device->update();
 
@@ -134,8 +134,6 @@ bool Network::update()
         return false;
     }
 
-    _lastConnectedTs = ts;
-
     if(!_device->mqttClient()->connected())
     {
         bool success = reconnect();
@@ -150,8 +148,20 @@ bool Network::update()
         bool success = publishString(mqtt_topic_presence, _presenceCsv);
         if(success)
         {
+            if(_publishFailCount > 0)
+            {
+                Serial.println("Resetting publish fail count.");
+            }
+            _publishFailCount = 0;
+            _lastPublishFailTs = 0;
             _presenceCsv = nullptr;
-            _lastPublishTs = ts;
+        }
+        else if((ts - _lastPublishFailTs) > ((_networkTimeout * 1000) / 5))
+        {
+            ++_publishFailCount;
+            _lastPublishFailTs = ts;
+            Serial.print("Increased publish fail count :");
+            Serial.println(_publishFailCount);
         }
     }
 
