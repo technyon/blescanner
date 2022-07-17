@@ -105,14 +105,14 @@ void Network::initialize()
 
 bool Network::update()
 {
-    long ts = millis();
+    unsigned long ts = millis();
 
-    if(_lastPublishTs > 0 && (ts - _lastPublishTs > _networkTimeout * 1000))
-    {
-        Serial.println("Last publish timeout has been reached, restarting ...");
-        delay(200);
-        ESP.restart();
-    }
+//    if(_lastPublishTs > 0 && (ts - _lastPublishTs > _networkTimeout * 1000))
+//    {
+//        Serial.println("Last publish timeout has been reached, restarting ...");
+//        delay(200);
+//        ESP.restart();
+//    }
 
     _device->update();
 

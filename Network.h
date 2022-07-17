@@ -63,5 +63,5 @@ private:
     std::map<const char*, int> _pinStates;
 
     unsigned long _lastConnectedTs = 0;
-    uint8_t _lastPublishTs = 0;
+    unsigned long _lastPublishTs = 0;
 };
