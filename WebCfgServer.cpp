@@ -31,8 +31,6 @@ WebCfgServer::WebCfgServer(Network* network, EthServer* ethServer, Preferences* 
 void WebCfgServer::initialize()
 {
     _server.on("/", [&]() {
-        Serial.print("Expected user    : "); Serial.println(_credUser);
-        Serial.print("Expected password: "); Serial.println(_credPassword);
         if (_hasCredentials && !_server.authenticate(_credUser, _credPassword)) {
             return _server.requestAuthentication();
         }
