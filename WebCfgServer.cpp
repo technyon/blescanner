@@ -15,6 +15,9 @@ WebCfgServer::WebCfgServer(Network* network, EthServer* ethServer, Preferences* 
 
     if(str.length() > 0)
     {
+        memset(&_credUser, 0, sizeof(_credUser));
+        memset(&_credPassword, 0, sizeof(_credPassword));
+
         _hasCredentials = true;
         const char *user = str.c_str();
         memcpy(&_credUser, user, str.length());
@@ -85,6 +88,9 @@ void WebCfgServer::initialize()
         }
     });
     _server.on("/restart", [&]() {
+        if (_hasCredentials && !_server.authenticate(_credUser, _credPassword)) {
+            return _server.requestAuthentication();
+        }
         String response = "";
         buildConfirmHtml(response, "Restarting device, please wait.", 5);
         _server.send(200, "text/html", response);

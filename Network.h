@@ -63,4 +63,6 @@ private:
     std::map<const char*, int> _pinStates;
 
     unsigned long _lastConnectedTs = 0;
+    unsigned long _lastPublishFailTs = 0;
+    uint8_t _publishFailCount = 0;
 };

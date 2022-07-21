@@ -57,8 +57,8 @@ void Network::initialize()
     Serial.print(F("Host name: "));
     Serial.println(_hostname);
 
-    const char* brokerAddr = _preferences->getString(preference_mqtt_broker).c_str();
-    strcpy(_mqttBrokerAddr, brokerAddr);
+    String brokerAddr = _preferences->getString(preference_mqtt_broker).c_str();
+    strcpy(_mqttBrokerAddr, brokerAddr.c_str());
 
     int port = _preferences->getInt(preference_mqtt_broker_port);
     if(port == 0)
@@ -101,11 +101,20 @@ void Network::initialize()
         _networkTimeout = -1;
         _preferences->putInt(preference_network_timeout, _networkTimeout);
     }
+
+    subscribe(mqtt_topic_reset);
 }
 
 bool Network::update()
 {
-    long ts = millis();
+    unsigned long ts = millis();
+
+    if(_networkTimeout > 0 && _publishFailCount >= 5 )
+    {
+        Serial.println("Publish fail count has been reached, restarting ...");
+        delay(200);
+        ESP.restart();
+    }
 
     _device->update();
 
@@ -127,8 +136,6 @@ bool Network::update()
         return false;
     }
 
-    _lastConnectedTs = ts;
-
     if(!_device->mqttClient()->connected())
     {
         bool success = reconnect();
@@ -141,12 +148,23 @@ bool Network::update()
     if(_presenceCsv != nullptr && strlen(_presenceCsv) > 0)
     {
         bool success = publishString(mqtt_topic_presence, _presenceCsv);
-        if(!success)
+        if(success)
         {
-            Serial.println(F("Failed to publish presence CSV data."));
-            Serial.println(_presenceCsv);
+            if(_publishFailCount > 0)
+            {
+                Serial.println("Resetting publish fail count.");
+            }
+            _publishFailCount = 0;
+            _lastPublishFailTs = 0;
+            _presenceCsv = nullptr;
         }
-        _presenceCsv = nullptr;
+        else if((ts - _lastPublishFailTs) > ((_networkTimeout * 1000) / 5))
+        {
+            ++_publishFailCount;
+            _lastPublishFailTs = ts;
+            Serial.print("Increased publish fail count :");
+            Serial.println(_publishFailCount);
+        }
     }
 
     for(const auto& pin : _pinStates)
@@ -191,6 +209,8 @@ bool Network::reconnect()
             {
                 _device->mqttClient()->subscribe(topic.c_str());
             }
+
+            publishInt(mqtt_topic_reset, 0);
         }
         else
         {
@@ -246,6 +266,26 @@ void Network::onMqttDataReceivedCallback(char *topic, byte *payload, unsigned in
 
 void Network::onMqttDataReceived(char *&topic, byte *&payload, unsigned int &length)
 {
+    if(comparePrefixedPath(topic, mqtt_topic_reset))
+    {
+        char value[3] = {0};
+        size_t l = min(length, sizeof(value)-1);
+
+        for(int i=0; i<l; i++)
+        {
+            value[i] = payload[i];
+        }
+
+        if(strcmp(value, "1") == 0)
+        {
+            Serial.println("Reset requested via MQTT.");
+            delay(200);
+            ESP.restart();
+        }
+
+        return;
+    }
+
     for(auto receiver : _mqttReceivers)
     {
         receiver->onMqttDataReceived(topic, payload, length);

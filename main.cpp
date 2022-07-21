@@ -1,7 +1,7 @@
 #include "Arduino.h"
 #include "Pins.h"
 #include "WebCfgServer.h"
-#include <FreeRTOS.h>
+#include <RTOS.h>
 #include "PreferencesKeys.h"
 #include "PresenceDetection.h"
 #include "hardware/W5500EthServer.h"
@@ -86,9 +86,9 @@ void setupTasks()
     // configMAX_PRIORITIES is 25
 
     xTaskCreatePinnedToCore(networkTask, "ntw", 8192, NULL, 3, NULL, 1);
-    xTaskCreate(bleScannerTask, "scan", 4096, NULL, 2, NULL);
-    xTaskCreate(presenceDetectionTask, "prdet", 768, NULL, 5, NULL);
-    xTaskCreate(checkMillisTask, "mlchk", 512, NULL, 1, NULL);
+    xTaskCreatePinnedToCore(bleScannerTask, "scan", 4096, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(presenceDetectionTask, "prdet", 768, NULL, 5, NULL, 1);
+    xTaskCreatePinnedToCore(checkMillisTask, "mlchk", 640, NULL, 1, NULL, 1);
 }
 
 uint32_t getRandomId()
