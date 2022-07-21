@@ -101,6 +101,8 @@ void Network::initialize()
         _networkTimeout = -1;
         _preferences->putInt(preference_network_timeout, _networkTimeout);
     }
+
+    subscribe(mqtt_topic_reset);
 }
 
 bool Network::update()
@@ -207,6 +209,8 @@ bool Network::reconnect()
             {
                 _device->mqttClient()->subscribe(topic.c_str());
             }
+
+            publishInt(mqtt_topic_reset, 0);
         }
         else
         {
@@ -262,6 +266,26 @@ void Network::onMqttDataReceivedCallback(char *topic, byte *payload, unsigned in
 
 void Network::onMqttDataReceived(char *&topic, byte *&payload, unsigned int &length)
 {
+    if(comparePrefixedPath(topic, mqtt_topic_reset))
+    {
+        char value[3] = {0};
+        size_t l = min(length, sizeof(value)-1);
+
+        for(int i=0; i<l; i++)
+        {
+            value[i] = payload[i];
+        }
+
+        if(strcmp(value, "1") == 0)
+        {
+            Serial.println("Reset requested via MQTT.");
+            delay(200);
+            ESP.restart();
+        }
+
+        return;
+    }
+
     for(auto receiver : _mqttReceivers)
     {
         receiver->onMqttDataReceived(topic, payload, length);

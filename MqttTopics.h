@@ -1,6 +1,7 @@
 #pragma once
 
 #define mqtt_topic_presence "/presence/devices"
+#define mqtt_topic_reset "/presence/reset"
 
 #define mqtt_topic_input_pin_a "/gpio/input_16"
 #define mqtt_topic_input_pin_b "/gpio/input_27"

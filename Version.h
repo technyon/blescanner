@@ -1,3 +1,3 @@
 #pragma once
 
-#define blescanner_version "3.2"
+#define blescanner_version "3.3"
