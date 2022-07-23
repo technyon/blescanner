@@ -27,14 +27,8 @@ void networkTask(void *pvParameters)
 
         switch(r)
         {
-            // Network Device and MQTT is connected. Process all updates.
             case 0:
-                network->update();
-                webCfgServer->update();
-                break;
             case 1:
-                // Network Device is connected, but MQTT isn't. Call network->update() to allow MQTT reconnect and
-                // keep Webserver alive to allow user to reconfigure network settings
                 network->update();
                 webCfgServer->update();
                 break;

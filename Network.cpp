@@ -176,6 +176,13 @@ bool Network::update()
         _pinStates[pin.first] = -1;
     }
 
+    if(_lastMaintenanceTs == 0 || (ts - _lastMaintenanceTs) > 30000)
+    {
+        _lastMaintenanceTs = ts;
+        publishULong(mqtt_topic_uptime, ts / 1000 / 60);
+        publishUInt(mqtt_topic_freeheap, esp_get_free_heap_size());
+    }
+
     _device->mqttClient()->loop();
     return true;
 }
@@ -327,6 +334,15 @@ void Network::publishInt(const char *topic, const int value)
 }
 
 void Network::publishUInt(const char *topic, const unsigned int value)
+{
+    char str[30];
+    utoa(value, str, 10);
+    char path[200] = {0};
+    buildMqttPath(topic, path);
+    _device->mqttClient()->publish(path, str, true);
+}
+
+void Network::publishULong(const char *topic, const unsigned long value)
 {
     char str[30];
     utoa(value, str, 10);

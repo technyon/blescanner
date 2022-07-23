@@ -26,6 +26,7 @@ public:
     void publishFloat(const char* topic, const float value, const uint8_t precision = 2);
     void publishInt(const char* topic, const int value);
     void publishUInt(const char* topic, const unsigned int value);
+    void publishULong(const char* topic, const unsigned long value);
     void publishBool(const char* topic, const bool value);
     bool publishString(const char* topic, const char* value);
     void publishPin(const char* topic, int value);
@@ -62,6 +63,7 @@ private:
     char* _presenceCsv = nullptr;
     std::map<const char*, int> _pinStates;
 
+    unsigned long _lastMaintenanceTs = 0;
     unsigned long _lastConnectedTs = 0;
     unsigned long _lastPublishFailTs = 0;
     uint8_t _publishFailCount = 0;
