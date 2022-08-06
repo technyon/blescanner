@@ -36,6 +36,7 @@ file(GLOB SRCFILES
         networkDevices/W5500Device.cpp
         MqttTopics.h
         Ota.cpp
+        WebCfgServerConstants.h
         WebCfgServer.cpp
         PresenceDetection.cpp
         PreferencesKeys.h
