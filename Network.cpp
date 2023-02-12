@@ -14,19 +14,11 @@ Network* Network::_inst = nullptr;
 
 RTC_NOINIT_ATTR char WiFi_fallbackDetect[14];
 
-Network::Network(Preferences *preferences, const String& maintenancePathPrefix)
+Network::Network(Preferences *preferences)
 : _preferences(preferences)
 {
     _inst = this;
     _hostname = _preferences->getString(preference_hostname);
-
-    _maintenancePathPrefix = maintenancePathPrefix;
-
-    size_t len = maintenancePathPrefix.length();
-    for(int i=0; i < len; i++)
-    {
-        _maintenancePathPrefix[i] = maintenancePathPrefix.charAt(i);
-    }
 
     String mqttPath = _preferences->getString(preference_mqtt_path);
 

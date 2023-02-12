@@ -127,7 +127,7 @@ void setup()
 //    const NetworkDeviceType networkDevice = NetworkDeviceType::WiFi;
     const NetworkDeviceType networkDevice = digitalRead(NETWORK_SELECT) == HIGH ? NetworkDeviceType::WiFi : NetworkDeviceType::W5500;
 
-    network = new Network(preferences, preference_mqtt_path);
+    network = new Network(preferences);
     network->initialize();
 
     if(preferences->getBool(preference_gpio_enabled))
