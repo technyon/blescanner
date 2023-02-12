@@ -20,7 +20,7 @@ Network::Network(Preferences *preferences, const String& maintenancePathPrefix)
     _inst = this;
     _hostname = _preferences->getString(preference_hostname);
 
-    memset(_maintenancePathPrefix, 0, sizeof(_maintenancePathPrefix));
+    _maintenancePathPrefix = maintenancePathPrefix;
 
     size_t len = maintenancePathPrefix.length();
     for(int i=0; i < len; i++)
@@ -238,17 +238,17 @@ bool Network::update()
         }
     }
 
-//    if(_lastMaintenanceTs == 0 || (ts - _lastMaintenanceTs) > 30000)
-//    {
-//        publishULong(_maintenancePathPrefix, mqtt_topic_uptime, ts / 1000 / 60);
-//        if(_publishDebugInfo)
-//        {
-//            publishUInt(_maintenancePathPrefix, mqtt_topic_freeheap, esp_get_free_heap_size());
-//            publishString(_maintenancePathPrefix, mqtt_topic_restart_reason_fw, getRestartReason().c_str());
-//            publishString(_maintenancePathPrefix, mqtt_topic_restart_reason_esp, getEspRestartReason().c_str());
-//        }
-//        _lastMaintenanceTs = ts;
-//    }
+    if(_lastMaintenanceTs == 0 || (ts - _lastMaintenanceTs) > 30000)
+    {
+        publishULong(mqtt_topic_uptime, ts / 1000 / 60);
+        if(_publishDebugInfo)
+        {
+            publishUInt(mqtt_topic_freeheap, esp_get_free_heap_size());
+            publishString(mqtt_topic_restart_reason_fw, getRestartReason().c_str());
+            publishString(mqtt_topic_restart_reason_esp, getEspRestartReason().c_str());
+        }
+        _lastMaintenanceTs = ts;
+    }
 
     return true;
 }

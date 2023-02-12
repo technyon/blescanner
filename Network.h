@@ -73,7 +73,7 @@ private:
     char _mqttUser[31] = {0};
     char _mqttPass[31] = {0};
     char _mqttPresencePrefix[181] = {0};
-    char _maintenancePathPrefix[181] = {0};
+    String _maintenancePathPrefix;
     char _mqttPath[181] = {0};
     int _networkTimeout = 0;
     std::vector<MqttReceiver*> _mqttReceivers;
