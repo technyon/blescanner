@@ -8,7 +8,7 @@ class Gpio : public MqttReceiver
 public:
     Gpio(Network* network);
 
-    virtual void onMqttDataReceived(char *&topic, byte *&payload, unsigned int &length);
+    virtual void onMqttDataReceived(const char* topic, byte* payload, const unsigned int length) override;
 
 private:
     static void IRAM_ATTR input_a();

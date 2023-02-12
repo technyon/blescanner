@@ -3,6 +3,7 @@
 #include "Arduino.h"
 #include "Pins.h"
 #include "MqttTopics.h"
+#include "Logger.h"
 
 Network* Gpio::_network = nullptr;
 
@@ -38,15 +39,9 @@ Gpio::Gpio(Network* network)
     _network->registerMqttReceiver(this);
 }
 
-void Gpio::onMqttDataReceived(char *&topic, byte *&payload, unsigned int &length)
+void Gpio::onMqttDataReceived(const char* topic, byte* payload, const unsigned int length)
 {
-    char value[50] = {0};
-    size_t l = min(length, sizeof(value)-1);
-
-    for(int i=0; i<l; i++)
-    {
-        value[i] = payload[i];
-    }
+    char* value = (char*)payload;
 
     if(_network->comparePrefixedPath(topic, mqtt_topic_output_pin_a))
     {
@@ -70,6 +65,8 @@ void Gpio::onMqttDataReceived(char *&topic, byte *&payload, unsigned int &length
     }
     else if(_network->comparePrefixedPath(topic, mqtt_topic_output_pin_f))
     {
+        Serial.println(value);
+        Serial.println(strcmp(value, "1") == 0 ? "HIGH" : "LOW");
         digitalWrite(OUTPUT_PIN_F, strcmp(value, "1") == 0 ? HIGH : LOW);
     }
 }

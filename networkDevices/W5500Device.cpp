@@ -3,32 +3,39 @@
 #include "W5500Device.h"
 #include "../Pins.h"
 #include "../PreferencesKeys.h"
+#include "../Logger.h"
+#include "../MqttTopics.h"
 
-W5500Device::W5500Device(const String &hostname, Preferences* preferences)
+W5500Device::W5500Device(const String &hostname, Preferences* preferences, int variant)
 : NetworkDevice(hostname),
-  _preferences(preferences)
+  _preferences(preferences),
+  _variant((W5500Variant)variant)
 {
     initializeMacAddress(_mac);
-    _restartOnDisconnect = _preferences->getBool(preference_restart_on_disconnect);
 
-    Serial.print("MAC Adress: ");
+    Log->print("MAC Adress: ");
     for(int i=0; i < 6; i++)
     {
         if(_mac[i] < 10)
         {
-            Serial.print(F("0"));
+            Log->print(F("0"));
         }
-        Serial.print(_mac[i], 16);
+        Log->print(_mac[i], 16);
         if(i < 5)
         {
-            Serial.print(F(":"));
+            Log->print(F(":"));
         }
     }
-    Serial.println();
+    Log->println();
 }
 
 W5500Device::~W5500Device()
 {}
+
+const String W5500Device::deviceName() const
+{
+    return "Wiznet W5500";
+}
 
 void W5500Device::initialize()
 {
@@ -36,48 +43,63 @@ void W5500Device::initialize()
 
     resetDevice();
 
-    Ethernet.init(ETHERNET_CS_PIN);
-    _ethClient = new EthernetClient();
-    _mqttClient = new PubSubClient(*_ethClient);
-    _mqttClient->setBufferSize(_mqttMaxBufferSize);
+    switch(_variant)
+    {
+        case W5500Variant::M5StackAtomPoe:
+            _resetPin = -1;
+            Ethernet.init(19, 22, 23, 33);
+            break;
+        default:
+            _resetPin = -1;
+            Ethernet.init(5);
+            break;
+    }
+
+//    if(_preferences->getBool(preference_mqtt_log_enabled))
+//    {
+//        String pathStr = _preferences->getString(preference_mqtt_lock_path);
+//        pathStr.concat(mqtt_topic_log);
+//        _path = new char[pathStr.length() + 1];
+//        memset(_path, 0, sizeof(_path));
+//        strcpy(_path, pathStr.c_str());
+//        Log = new MqttLogger(this, _path, MqttLoggerMode::MqttAndSerial);
+//    }
 
     reconnect();
 }
 
-
-bool W5500Device::reconnect()
+ReconnectStatus W5500Device::reconnect()
 {
-    if(_restartOnDisconnect && millis() > 60000)
-    {
-        ESP.restart();
-    }
-
     _hasDHCPAddress = false;
 
     // start the Ethernet connection:
-    Serial.println(F("Initialize Ethernet with DHCP:"));
+    Log->println(F("Initialize Ethernet with DHCP:"));
 
     int dhcpRetryCnt = 0;
+    bool hardwareFound = false;
 
     while(dhcpRetryCnt < 3)
     {
-        Serial.print(F("DHCP connect try #"));
-        Serial.print(dhcpRetryCnt);
-        Serial.println();
+        Log->print(F("DHCP connect try #"));
+        Log->print(dhcpRetryCnt);
+        Log->println();
         dhcpRetryCnt++;
 
         if (Ethernet.begin(_mac, 1000, 1000) == 0)
         {
-            Serial.println(F("Failed to configure Ethernet using DHCP"));
+            Log->println(F("Failed to configure Ethernet using DHCP"));
             // Check for Ethernet hardware present
             if (Ethernet.hardwareStatus() == EthernetNoHardware)
             {
-                Serial.println(F("Ethernet module not found"));
+                Log->println(F("Ethernet module not found"));
+                continue;
             }
             if (Ethernet.linkStatus() == LinkOFF)
             {
-                Serial.println(F("Ethernet cable is not connected."));
+                Log->println(F("Ethernet cable is not connected."));
             }
+
+            hardwareFound = true;
 
             IPAddress ip;
             ip.fromString("192.168.4.1");
@@ -95,42 +117,49 @@ bool W5500Device::reconnect()
         {
             _hasDHCPAddress = true;
             dhcpRetryCnt = 1000;
-            Serial.print(F("  DHCP assigned IP "));
-            Serial.println(Ethernet.localIP());
+            Log->print(F("  DHCP assigned IP "));
+            Log->println(Ethernet.localIP());
         }
     }
 
-    return _hasDHCPAddress;
+    if(!hardwareFound)
+    {
+        return ReconnectStatus::CriticalFailure;
+    }
+
+    return _hasDHCPAddress ? ReconnectStatus::Success : ReconnectStatus::Failure;
 }
 
 
 void W5500Device::reconfigure()
 {
-    Serial.println(F("Reconfigure W5500 not implemented."));
+    Log->println(F("Reconfigure W5500 not implemented."));
 }
 
 void W5500Device::resetDevice()
 {
-    Serial.println(F("Resetting network hardware."));
-    pinMode(ETHERNET_RESET_PIN, OUTPUT);
-    digitalWrite(ETHERNET_RESET_PIN, HIGH);
+    if(_resetPin == -1) return;
+
+    Log->println(F("Resetting network hardware."));
+    pinMode(_resetPin, OUTPUT);
+    digitalWrite(_resetPin, HIGH);
     delay(250);
-    digitalWrite(ETHERNET_RESET_PIN, LOW);
+    digitalWrite(_resetPin, LOW);
     delay(50);
-    digitalWrite(ETHERNET_RESET_PIN, HIGH);
+    digitalWrite(_resetPin, HIGH);
     delay(1500);
 }
 
 
 void W5500Device::printError()
 {
-    Serial.print(F("Free Heap: "));
-    Serial.println(ESP.getFreeHeap());
+    Log->print(F("Free Heap: "));
+    Log->println(ESP.getFreeHeap());
 }
 
-PubSubClient *W5500Device::mqttClient()
+bool W5500Device::supportsEncryption()
 {
-    return _mqttClient;
+    return false;
 }
 
 bool W5500Device::isConnected()
@@ -168,4 +197,74 @@ void W5500Device::initializeMacAddress(byte *mac)
 void W5500Device::update()
 {
     _maintainResult = Ethernet.maintain();
+}
+
+int8_t W5500Device::signalStrength()
+{
+    return 127;
+}
+
+void W5500Device::mqttSetClientId(const char *clientId)
+{
+    _mqttClient.setClientId(clientId);
+}
+
+void W5500Device::mqttSetCleanSession(bool cleanSession)
+{
+    _mqttClient.setCleanSession(cleanSession);
+}
+
+uint16_t W5500Device::mqttPublish(const char *topic, uint8_t qos, bool retain, const char *payload)
+{
+    return _mqttClient.publish(topic, qos, retain, payload);
+}
+
+bool W5500Device::mqttConnected() const
+{
+    return _mqttClient.connected();
+}
+
+void W5500Device::mqttSetServer(const char *host, uint16_t port)
+{
+    _mqttClient.setServer(host, port);
+}
+
+bool W5500Device::mqttConnect()
+{
+    return _mqttClient.connect();
+}
+
+bool W5500Device::mqttDisonnect(bool force)
+{
+    return _mqttClient.disconnect(force);
+}
+
+void W5500Device::mqttSetCredentials(const char *username, const char *password)
+{
+    _mqttClient.setCredentials(username, password);
+}
+
+void W5500Device::mqttOnMessage(espMqttClientTypes::OnMessageCallback callback)
+{
+    _mqttClient.onMessage(callback);
+}
+
+void W5500Device::mqttOnConnect(espMqttClientTypes::OnConnectCallback callback)
+{
+    _mqttClient.onConnect(callback);
+}
+
+void W5500Device::mqttOnDisconnect(espMqttClientTypes::OnDisconnectCallback callback)
+{
+    _mqttClient.onDisconnect(callback);
+}
+
+uint16_t W5500Device::mqttSubscribe(const char *topic, uint8_t qos)
+{
+    return _mqttClient.subscribe(topic, qos);
+}
+
+uint16_t W5500Device::mqttPublish(const char *topic, uint8_t qos, bool retain, const uint8_t *payload, size_t length)
+{
+    return _mqttClient.publish(topic, qos, retain, payload, length);
 }

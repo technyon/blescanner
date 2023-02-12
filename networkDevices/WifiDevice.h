@@ -4,35 +4,69 @@
 #include <WiFiClientSecure.h>
 #include <Preferences.h>
 #include "NetworkDevice.h"
-#include "../SpiffsCookie.h"
 #include "WiFiManager.h"
+#include "espMqttClient.h"
 
 class WifiDevice : public NetworkDevice
 {
 public:
     WifiDevice(const String& hostname, Preferences* _preferences);
 
+    const String deviceName() const override;
+
     virtual void initialize();
     virtual void reconfigure();
-    virtual bool reconnect();
+    virtual ReconnectStatus reconnect();
     virtual void printError();
+    bool supportsEncryption() override;
 
     virtual void update();
 
     virtual bool isConnected();
 
-    virtual PubSubClient *mqttClient();
+    int8_t signalStrength() override;
+
+    void mqttSetClientId(const char *clientId) override;
+
+    void mqttSetCleanSession(bool cleanSession) override;
+
+    uint16_t mqttPublish(const char *topic, uint8_t qos, bool retain, const char *payload) override;
+
+    uint16_t mqttPublish(const char *topic, uint8_t qos, bool retain, const uint8_t *payload, size_t length) override;
+
+    bool mqttConnected() const override;
+
+    void mqttSetServer(const char *host, uint16_t port) override;
+
+    bool mqttConnect() override;
+
+    bool mqttDisonnect(bool force) override;
+
+    void mqttSetCredentials(const char *username, const char *password) override;
+
+    void mqttOnMessage(espMqttClientTypes::OnMessageCallback callback) override;
+
+    void mqttOnConnect(espMqttClientTypes::OnConnectCallback callback) override;
+
+    void mqttOnDisconnect(espMqttClientTypes::OnDisconnectCallback callback) override;
+
+    uint16_t mqttSubscribe(const char *topic, uint8_t qos) override;
 
 private:
+    static void clearRtcInitVar(WiFiManager*);
+
     void onDisconnected();
 
     WiFiManager _wm;
-    WiFiClient* _wifiClient = nullptr;
-    WiFiClientSecure* _wifiClientSecure = nullptr;
-    PubSubClient* _mqttClient = nullptr;
-    bool _restartOnDisconnect = false;
+    espMqttClient* _mqttClient = nullptr;
+    espMqttClientSecure* _mqttClientSecure = nullptr;
 
-    char _ca[TLS_CA_MAX_SIZE];
-    char _cert[TLS_CERT_MAX_SIZE];
-    char _key[TLS_KEY_MAX_SIZE];
+    bool _restartOnDisconnect = false;
+    bool _startAp = false;
+    char* _path;
+    bool _useEncryption = false;
+
+    char _ca[TLS_CA_MAX_SIZE] = {0};
+    char _cert[TLS_CERT_MAX_SIZE] = {0};
+    char _key[TLS_KEY_MAX_SIZE] = {0};
 };

@@ -22,10 +22,11 @@ include_directories(${PROJECT_NAME}
         lib/NimBLE-Arduino/src
         lib/BleScanner/src
         lib/WiFiManager
-        lib/pubsubclient/src
         lib/WebServer/src
         lib/Ethernet/src
-)
+        lib/espMqttClient/src
+        lib/AsyncTCP/src
+        )
 
 file(GLOB SRCFILES
         Pins.h
@@ -34,7 +35,11 @@ file(GLOB SRCFILES
         networkDevices/NetworkDevice.h
         networkDevices/WifiDevice.cpp
         networkDevices/W5500Device.cpp
+        networkDevices/ClientSyncW5500.cpp
+        networkDevices/espMqttClientW5500.cpp
         MqttTopics.h
+        Logger.cpp
+        RestartReason.h
         Ota.cpp
         WebCfgServerConstants.h
         WebCfgServer.cpp
@@ -47,7 +52,7 @@ file(GLOB SRCFILES
         lib/Crc16/Crc16.h
         lib/BleScanner/src/BleInterfaces.h
         lib/BleScanner/src/BleScanner.cpp
-        lib/pubsubclient/src/PubSubClient.cpp
+        lib/AsyncTCP/src/AsyncTCP.cpp
         )
 
 file(GLOB_RECURSE SRCFILESREC
@@ -58,6 +63,12 @@ file(GLOB_RECURSE SRCFILESREC
         lib/WebServer/src/*.h
         lib/Ethernet/src/*.cpp
         lib/Ethernet/src/*.h
+        lib/espMqttClient/src/*.cpp
+        lib/espMqttClient/src/*.h
+        lib/espMqttClient/src/Packets/*.cpp
+        lib/espMqttClient/src/Packets/*.h
+        lib/espMqttClient/src/Transport/*.cpp
+        lib/espMqttClient/src/Transport/*.h
         )
 
 add_executable(${PROJECT_NAME}

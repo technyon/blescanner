@@ -7,6 +7,7 @@
 #include "hardware/W5500EthServer.h"
 #include "hardware/WifiEthServer.h"
 #include "Gpio.h"
+#include "Logger.h"
 
 Network* network = nullptr;
 Gpio* gpio = nullptr;
@@ -16,8 +17,8 @@ PresenceDetection* presenceDetection = nullptr;
 Preferences* preferences = nullptr;
 EthServer* ethServer = nullptr;
 
-bool lockEnabled = false;
-bool openerEnabled = false;
+RTC_NOINIT_ATTR int restartReason;
+RTC_NOINIT_ATTR uint64_t restartReasonValid;
 
 void networkTask(void *pvParameters)
 {
@@ -118,6 +119,7 @@ void setup()
     pinMode(NETWORK_SELECT, INPUT_PULLUP);
 
     Serial.begin(115200);
+    Log = &Serial;
 
     preferences = new Preferences();
     preferences->begin("blescanner", false);
@@ -125,7 +127,7 @@ void setup()
 //    const NetworkDeviceType networkDevice = NetworkDeviceType::WiFi;
     const NetworkDeviceType networkDevice = digitalRead(NETWORK_SELECT) == HIGH ? NetworkDeviceType::WiFi : NetworkDeviceType::W5500;
 
-    network = new Network(networkDevice, preferences);
+    network = new Network(preferences, preference_mqtt_path);
     network->initialize();
 
     if(preferences->getBool(preference_gpio_enabled))

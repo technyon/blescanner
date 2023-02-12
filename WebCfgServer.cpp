@@ -3,6 +3,8 @@
 #include "PreferencesKeys.h"
 #include "Version.h"
 #include "hardware/WifiEthServer.h"
+#include "Logger.h"
+#include "RestartReason.h"
 #include <esp_task_wdt.h>
 
 WebCfgServer::WebCfgServer(Network* network, EthServer* ethServer, Preferences* preferences, bool allowRestartToPortal)
@@ -288,6 +290,13 @@ bool WebCfgServer::processArgs(String& message)
 
 void WebCfgServer::update()
 {
+    if(_otaStartTs > 0 && (millis() - _otaStartTs) > 120000)
+    {
+        Log->println(F("OTA time out, restarting"));
+        delay(200);
+        restartEsp(RestartReason::OTATimeout);
+    }
+
     if(!_enabled) return;
 
     _server.handleClient();
@@ -303,7 +312,7 @@ void WebCfgServer::buildHtml(String& response)
 
     response.concat("<table>");
 
-    printParameter(response, "MQTT Connected", _network->isMqttConnected() ? "Yes" : "No");
+    printParameter(response, "MQTT Connected", _network->mqttConnectionState() >= 2 ? "Yes" : "No");
 
     printParameter(response, "Firmware", version.c_str());
     response.concat("</table><br><br>");
@@ -561,7 +570,8 @@ void WebCfgServer::waitAndProcess(const bool blocking, const uint32_t duration)
 
 void WebCfgServer::handleOtaUpload()
 {
-    if (_server.uri() != "/uploadota") {
+    if (_server.uri() != "/uploadota")
+    {
         return;
     }
     if(millis() < 60000)
@@ -569,32 +579,50 @@ void WebCfgServer::handleOtaUpload()
         return;
     }
 
-    esp_task_wdt_init(30, false);
-
     HTTPUpload& upload = _server.upload();
 
     if(upload.filename == "")
     {
-        Serial.println("Invalid file for OTA upload");
+        Log->println("Invalid file for OTA upload");
         return;
     }
 
-    if (upload.status == UPLOAD_FILE_START) {
+    if (upload.status == UPLOAD_FILE_START)
+    {
         String filename = upload.filename;
-        if (!filename.startsWith("/")) {
+        if (!filename.startsWith("/"))
+        {
             filename = "/" + filename;
         }
-        Serial.print("handleFileUpload Name: "); Serial.println(filename);
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        _otaStartTs = millis();
+        esp_task_wdt_init(30, false);
+        _network->disableAutoRestarts();
+        Log->print("handleFileUpload Name: "); Log->println(filename);
+    }
+    else if (upload.status == UPLOAD_FILE_WRITE)
+    {
         _transferredSize = _transferredSize + upload.currentSize;
-        Serial.println(_transferredSize);
+        Log->println(_transferredSize);
         _ota.updateFirmware(upload.buf, upload.currentSize);
-    } else if (upload.status == UPLOAD_FILE_END) {
-        Serial.println();
-        Serial.print("handleFileUpload Size: "); Serial.println(upload.totalSize);
+    } else if (upload.status == UPLOAD_FILE_END)
+    {
+        Log->println();
+        Log->print("handleFileUpload Size: "); Log->println(upload.totalSize);
+    }
+    else if(upload.status == UPLOAD_FILE_ABORTED)
+    {
+        Log->println();
+        Log->println("OTA aborted, restarting ESP.");
+        restartEsp(RestartReason::OTAAborted);
+    }
+    else
+    {
+        Log->println();
+        Log->print("OTA unknown state: ");
+        Log->println((int)upload.status);
+        restartEsp(RestartReason::OTAUnknownState);
     }
 }
-
 void WebCfgServer::sendNewCss()
 {
     // escaped by https://www.cescaper.com/

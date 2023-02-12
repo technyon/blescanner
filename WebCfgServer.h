@@ -63,6 +63,7 @@ private:
     bool _allowRestartToPortal = false;
     uint32_t _transferredSize = 0;
     bool _otaStart = true;
+    unsigned long _otaStartTs = 0;
 
     String _confirmCode = "----";
 

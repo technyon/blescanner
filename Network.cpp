@@ -3,61 +3,109 @@
 #include "MqttTopics.h"
 #include "networkDevices/W5500Device.h"
 #include "networkDevices/WifiDevice.h"
+#include "Logger.h"
+#include "Config.h"
+#include "RestartReason.h"
+#include "Pins.h"
+#include "Version.h"
 
 
 Network* Network::_inst = nullptr;
 
-Network::Network(const NetworkDeviceType networkDevice, Preferences *preferences)
+RTC_NOINIT_ATTR char WiFi_fallbackDetect[14];
+
+Network::Network(Preferences *preferences, const String& maintenancePathPrefix)
 : _preferences(preferences)
 {
     _inst = this;
     _hostname = _preferences->getString(preference_hostname);
-    setupDevice(networkDevice);
+
+    memset(_maintenancePathPrefix, 0, sizeof(_maintenancePathPrefix));
+
+    size_t len = maintenancePathPrefix.length();
+    for(int i=0; i < len; i++)
+    {
+        _maintenancePathPrefix[i] = maintenancePathPrefix.charAt(i);
+    }
+
+    String mqttPath = _preferences->getString(preference_mqtt_path);
+
+    if(mqttPath.length() == 0)
+    {
+        mqttPath = "blescanner";
+        _preferences->putString(preference_mqtt_path, mqttPath);
+    }
+
+    memset(_mqttPath, 0, sizeof(_mqttPath));
+    strcpy(_mqttPath, mqttPath.c_str());
+
+    setupDevice();
 }
 
-
-void Network::setupDevice(const NetworkDeviceType hardware)
+void Network::setupDevice()
 {
-    switch(hardware)
+    if(strcmp(WiFi_fallbackDetect, "wifi_fallback") == 0)
+    {
+        Log->println(F("Switching to WiFi device as fallback."));
+        _networkDeviceType = NetworkDeviceType::WiFi;
+    }
+    else
+    {
+        pinMode(NETWORK_SELECT, INPUT_PULLUP);
+        _networkDeviceType = digitalRead(NETWORK_SELECT) == HIGH ? NetworkDeviceType::WiFi : NetworkDeviceType::W5500;
+    }
+
+    switch(_networkDeviceType)
     {
         case NetworkDeviceType::W5500:
-            Serial.println(F("Network device: W5500"));
-            _device = new W5500Device(_hostname, _preferences);
+            Log->println(F("Network device: W5500"));
+            _device = new W5500Device(_hostname, _preferences, (int)W5500Variant::Generic);
             break;
         case NetworkDeviceType::WiFi:
-            Serial.println(F("Network device: Builtin WiFi"));
+            Log->println(F("Network device: Builtin WiFi"));
             _device = new WifiDevice(_hostname, _preferences);
             break;
         default:
-            Serial.println(F("Unknown network device type, defaulting to WiFi"));
+            Log->println(F("Unknown network device type, defaulting to WiFi"));
             _device = new WifiDevice(_hostname, _preferences);
             break;
     }
+
+    _device->mqttOnConnect([&](bool sessionPresent)
+        {
+            onMqttConnect(sessionPresent);
+        });
+    _device->mqttOnDisconnect([&](espMqttClientTypes::DisconnectReason reason)
+        {
+            onMqttDisconnect(reason);
+        });
 }
 
 void Network::initialize()
 {
+    _restartOnDisconnect = _preferences->getBool(preference_restart_on_disconnect);
+    _rssiPublishInterval = 10 * 1000;
+            //_preferences->getInt(preference_rssi_publish_interval) * 1000; TODO
+
+    _hostname = _preferences->getString(preference_hostname);
+
     if(_hostname == "")
     {
         _hostname = "blescanner";
         _preferences->putString(preference_hostname, _hostname);
     }
-
-    String path = _preferences->getString(preference_mqtt_path);
-    if(path == "")
-    {
-        path = "blescanner";
-        _preferences->putString(preference_mqtt_path, path);
-    }
-
-    strcpy(_mqttPath, path.c_str());
-
+//    if(_rssiPublishInterval == 0)
+//    {
+//        _rssiPublishInterval = -1;
+//        _preferences->putInt(preference_rssi_publish_interval, _rssiPublishInterval);
+//    }
+    strcpy(_hostnameArr, _hostname.c_str());
     _device->initialize();
 
-    Serial.print(F("Host name: "));
-    Serial.println(_hostname);
+    Log->print(F("Host name: "));
+    Log->println(_hostname);
 
-    String brokerAddr = _preferences->getString(preference_mqtt_broker).c_str();
+    String brokerAddr = _preferences->getString(preference_mqtt_broker);
     strcpy(_mqttBrokerAddr, brokerAddr.c_str());
 
     int port = _preferences->getInt(preference_mqtt_broker_port);
@@ -87,13 +135,13 @@ void Network::initialize()
         }
     }
 
-    Serial.print(F("MQTT Broker: "));
-    Serial.print(_mqttBrokerAddr);
-    Serial.print(F(":"));
-    Serial.println(port);
+    Log->print(F("MQTT Broker: "));
+    Log->print(_mqttBrokerAddr);
+    Log->print(F(":"));
+    Log->println(port);
 
-    _device->mqttClient()->setServer(_mqttBrokerAddr, port);
-    _device->mqttClient()->setCallback(Network::onMqttDataReceivedCallback);
+    _device->mqttSetClientId(_hostnameArr);
+    _device->mqttSetCleanSession(MQTT_CLEAN_SESSIONS);
 
     _networkTimeout = _preferences->getInt(preference_network_timeout);
     if(_networkTimeout == 0)
@@ -102,42 +150,53 @@ void Network::initialize()
         _preferences->putInt(preference_network_timeout, _networkTimeout);
     }
 
-    subscribe(mqtt_topic_reset);
+    _publishDebugInfo = false; //_preferences->getBool(preference_publish_debug_info);
 }
 
 bool Network::update()
 {
     unsigned long ts = millis();
 
-    if(_networkTimeout > 0 && _publishFailCount >= 5 )
-    {
-        Serial.println("Publish fail count has been reached, restarting ...");
-        delay(200);
-        ESP.restart();
-    }
-
     _device->update();
 
     if(!_device->isConnected())
     {
-        Serial.println(F("Network not connected. Trying reconnect."));
-        bool success = _device->reconnect();
-        Serial.println(success ? F("Reconnect successful") : F("Reconnect failed"));
-    }
-
-    if(!_device->isConnected())
-    {
-        if(_networkTimeout > 0 && (ts - _lastConnectedTs > _networkTimeout * 1000))
+        if(_restartOnDisconnect && millis() > 60000)
         {
-            Serial.println("Network timeout has been reached, restarting ...");
-            delay(200);
-            ESP.restart();
+            restartEsp(RestartReason::RestartOnDisconnectWatchdog);
         }
-        return false;
+
+        Log->println(F("Network not connected. Trying reconnect."));
+        ReconnectStatus reconnectStatus = _device->reconnect();
+
+        switch(reconnectStatus)
+        {
+            case ReconnectStatus::CriticalFailure:
+                strcpy(WiFi_fallbackDetect, "wifi_fallback");
+                Log->println("Network device has a critical failure, enable fallback to Wifi and reboot.");
+                delay(200);
+                restartEsp(RestartReason::NetworkDeviceCriticalFailure);
+                break;
+            case ReconnectStatus::Success:
+                memset(WiFi_fallbackDetect, 0, sizeof(WiFi_fallbackDetect));
+                Log->println(F("Reconnect successful"));
+                break;
+            case ReconnectStatus::Failure:
+                Log->println(F("Reconnect failed"));
+                break;
+        }
+
     }
 
-    if(!_device->mqttClient()->connected())
+    if(!_device->mqttConnected())
     {
+        if(_networkTimeout > 0 && (ts - _lastConnectedTs > _networkTimeout * 1000) && ts > 60000)
+        {
+            Log->println("Network timeout has been reached, restarting ...");
+            delay(200);
+            restartEsp(RestartReason::NetworkTimeoutWatchdog);
+        }
+
         bool success = reconnect();
         if(!success)
         {
@@ -145,26 +204,17 @@ bool Network::update()
         }
     }
 
+    _lastConnectedTs = ts;
+
     if(_presenceCsv != nullptr && strlen(_presenceCsv) > 0)
     {
         bool success = publishString(mqtt_topic_presence, _presenceCsv);
-        if(success)
+        if(!success)
         {
-            if(_publishFailCount > 0)
-            {
-                Serial.println("Resetting publish fail count.");
-            }
-            _publishFailCount = 0;
-            _lastPublishFailTs = 0;
-            _presenceCsv = nullptr;
+            Log->println(F("Failed to publish presence CSV data."));
+            Log->println(_presenceCsv);
         }
-        else if((ts - _lastPublishFailTs) > ((_networkTimeout * 1000) / 5))
-        {
-            ++_publishFailCount;
-            _lastPublishFailTs = ts;
-            Serial.print("Increased publish fail count :");
-            Serial.println(_publishFailCount);
-        }
+        _presenceCsv = nullptr;
     }
 
     for(const auto& pin : _pinStates)
@@ -176,60 +226,154 @@ bool Network::update()
         _pinStates[pin.first] = -1;
     }
 
-    if(_lastMaintenanceTs == 0 || (ts - _lastMaintenanceTs) > 30000)
+    if(_device->signalStrength() != 127 && _rssiPublishInterval > 0 && ts - _lastRssiTs > _rssiPublishInterval)
     {
-        _lastMaintenanceTs = ts;
-        publishULong(mqtt_topic_uptime, ts / 1000 / 60);
-        publishUInt(mqtt_topic_freeheap, esp_get_free_heap_size());
+        _lastRssiTs = ts;
+        int8_t rssi = _device->signalStrength();
+
+        if(rssi != _lastRssi)
+        {
+            publishInt(mqtt_topic_wifi_rssi, _device->signalStrength());
+            _lastRssi = rssi;
+        }
     }
 
-    _device->mqttClient()->loop();
+//    if(_lastMaintenanceTs == 0 || (ts - _lastMaintenanceTs) > 30000)
+//    {
+//        publishULong(_maintenancePathPrefix, mqtt_topic_uptime, ts / 1000 / 60);
+//        if(_publishDebugInfo)
+//        {
+//            publishUInt(_maintenancePathPrefix, mqtt_topic_freeheap, esp_get_free_heap_size());
+//            publishString(_maintenancePathPrefix, mqtt_topic_restart_reason_fw, getRestartReason().c_str());
+//            publishString(_maintenancePathPrefix, mqtt_topic_restart_reason_esp, getEspRestartReason().c_str());
+//        }
+//        _lastMaintenanceTs = ts;
+//    }
+
     return true;
+}
+
+
+void Network::onMqttConnect(const bool &sessionPresent)
+{
+    _connectReplyReceived = true;
+}
+
+void Network::onMqttDisconnect(const espMqttClientTypes::DisconnectReason &reason)
+{
+    _connectReplyReceived = true;
+
+    Log->print("MQTT disconnected. Reason: ");
+    switch(reason)
+    {
+        case espMqttClientTypes::DisconnectReason::USER_OK:
+            Log->println(F("USER_OK"));
+            break;
+        case espMqttClientTypes::DisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
+            Log->println(F("MQTT_UNACCEPTABLE_PROTOCOL_VERSION"));
+            break;
+        case espMqttClientTypes::DisconnectReason::MQTT_IDENTIFIER_REJECTED:
+            Log->println(F("MQTT_IDENTIFIER_REJECTED"));
+            break;
+        case espMqttClientTypes::DisconnectReason::MQTT_SERVER_UNAVAILABLE:
+            Log->println(F("MQTT_SERVER_UNAVAILABLE"));
+            break;
+        case espMqttClientTypes::DisconnectReason::MQTT_MALFORMED_CREDENTIALS:
+            Log->println(F("MQTT_MALFORMED_CREDENTIALS"));
+            break;
+        case espMqttClientTypes::DisconnectReason::MQTT_NOT_AUTHORIZED:
+            Log->println(F("MQTT_NOT_AUTHORIZED"));
+            break;
+        case espMqttClientTypes::DisconnectReason::TLS_BAD_FINGERPRINT:
+            Log->println(F("TLS_BAD_FINGERPRINT"));
+            break;
+        case espMqttClientTypes::DisconnectReason::TCP_DISCONNECTED:
+            Log->println(F("TCP_DISCONNECTED"));
+            break;
+        default:
+            Log->println(F("Unknown"));
+            break;
+    }
 }
 
 bool Network::reconnect()
 {
-    _mqttConnected = false;
+    _mqttConnectionState = 0;
+    int port = _preferences->getInt(preference_mqtt_broker_port);
 
-    while (!_device->mqttClient()->connected() && millis() > _nextReconnect)
+    while (!_device->mqttConnected() && millis() > _nextReconnect)
     {
-        Serial.println(F("Attempting MQTT connection"));
-        bool success = false;
+        if(strcmp(_mqttBrokerAddr, "") == 0)
+        {
+            Log->println(F("MQTT Broker not configured, aborting connection attempt."));
+            _nextReconnect = millis() + 5000;
+            return false;
+        }
 
+        Log->println(F("Attempting MQTT connection"));
+
+        _connectReplyReceived = false;
         if(strlen(_mqttUser) == 0)
         {
-            Serial.println(F("MQTT: Connecting without credentials"));
-            success = _device->mqttClient()->connect(_preferences->getString(preference_hostname).c_str());
+            Log->println(F("MQTT: Connecting without credentials"));
+            _device->mqttSetServer(_mqttBrokerAddr, port);
+            _device->mqttConnect();
         }
         else
         {
-            Serial.print(F("MQTT: Connecting with user: ")); Serial.println(_mqttUser);
-            success = _device->mqttClient()->connect(_preferences->getString(preference_hostname).c_str(), _mqttUser, _mqttPass);
+            Log->print(F("MQTT: Connecting with user: ")); Log->println(_mqttUser);
+            _device->mqttSetCredentials(_mqttUser, _mqttPass);
+            _device->mqttSetServer(_mqttBrokerAddr, port);
+            _device->mqttConnect();
         }
 
-        if (success)
+        unsigned long timeout = millis() + 60000;
+
+        while(!_connectReplyReceived && millis() < timeout)
         {
-            Serial.println(F("MQTT connected"));
-            _mqttConnected = true;
+            delay(200);
+            if(_keepAliveCallback != nullptr)
+            {
+                _keepAliveCallback();
+            }
+        }
+
+        if (_device->mqttConnected())
+        {
+            Log->println(F("MQTT connected"));
+            _mqttConnectionState = 1;
             delay(100);
+
+            _device->mqttOnMessage(Network::onMqttDataReceivedCallback);
             for(const String& topic : _subscribedTopics)
             {
-                _device->mqttClient()->subscribe(topic.c_str());
+                _device->mqttSubscribe(topic.c_str(), MQTT_QOS_LEVEL);
             }
-
-            publishInt(mqtt_topic_reset, 0);
+            if(_firstConnect)
+            {
+                _firstConnect = false;
+                for(const auto& it : _initTopics)
+                {
+                    _device->mqttPublish(it.first.c_str(), MQTT_QOS_LEVEL, true, it.second.c_str());
+                }
+            }
+            delay(1000);
+            _mqttConnectionState = 2;
+            for(const auto& callback : _reconnectedCallbacks)
+            {
+                callback();
+            }
         }
         else
         {
-            Serial.print(F("MQTT connect failed, rc="));
-            Serial.println(_device->mqttClient()->state());
+            Log->print(F("MQTT connect failed, rc="));
             _device->printError();
-            _device->mqttClient()->disconnect();
-            _mqttConnected = false;
+            _mqttConnectionState = 0;
             _nextReconnect = millis() + 5000;
+            _device->mqttDisonnect(true);
         }
     }
-    return _mqttConnected;
+    return _mqttConnectionState > 0;
 }
 
 void Network::subscribe(const char *path)
@@ -237,6 +381,15 @@ void Network::subscribe(const char *path)
     char prefixedPath[500];
     buildMqttPath(path, prefixedPath);
     _subscribedTopics.push_back(prefixedPath);
+}
+
+void Network::initTopic(const char *path, const char *value)
+{
+    char prefixedPath[500];
+    buildMqttPath(path, prefixedPath);
+    String pathStr = prefixedPath;
+    String valueStr = value;
+    _initTopics[pathStr] = valueStr;
 }
 
 void Network::buildMqttPath(const char* path, char* outPath)
@@ -251,14 +404,14 @@ void Network::buildMqttPath(const char* path, char* outPath)
     }
 
     i=0;
-    while(outPath[i] != 0x00)
+    while(path[i] != 0x00)
     {
         outPath[offset] = path[i];
         ++i;
         ++offset;
     }
 
-    outPath[i+1] = 0x00;
+    outPath[offset] = 0x00;
 }
 
 void Network::registerMqttReceiver(MqttReceiver* receiver)
@@ -266,42 +419,25 @@ void Network::registerMqttReceiver(MqttReceiver* receiver)
     _mqttReceivers.push_back(receiver);
 }
 
-void Network::onMqttDataReceivedCallback(char *topic, byte *payload, unsigned int length)
+void Network::onMqttDataReceivedCallback(const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t* payload, size_t len, size_t index, size_t total)
 {
-    _inst->onMqttDataReceived(topic, payload, length);
-}
+    uint8_t value[50] = {0};
+    size_t l = min(len, sizeof(value)-1);
 
-void Network::onMqttDataReceived(char *&topic, byte *&payload, unsigned int &length)
-{
-    if(comparePrefixedPath(topic, mqtt_topic_reset))
+    for(int i=0; i<l; i++)
     {
-        char value[3] = {0};
-        size_t l = min(length, sizeof(value)-1);
-
-        for(int i=0; i<l; i++)
-        {
-            value[i] = payload[i];
-        }
-
-        if(strcmp(value, "1") == 0)
-        {
-            Serial.println("Reset requested via MQTT.");
-            delay(200);
-            ESP.restart();
-        }
-
-        return;
+        value[i] = payload[i];
     }
 
+    _inst->onMqttDataReceived(properties, topic, value, len, index, total);
+}
+
+void Network::onMqttDataReceived(const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t* payload, size_t len, size_t index, size_t total)
+{
     for(auto receiver : _mqttReceivers)
     {
-        receiver->onMqttDataReceived(topic, payload, length);
+        receiver->onMqttDataReceived(topic, (byte*)payload, index);
     }
-}
-
-PubSubClient *Network::mqttClient()
-{
-    return _device->mqttClient();
 }
 
 void Network::reconfigureDevice()
@@ -309,11 +445,32 @@ void Network::reconfigureDevice()
     _device->reconfigure();
 }
 
-bool Network::isMqttConnected()
+void Network::setMqttPresencePath(char *path)
 {
-    return _mqttConnected;
+    memset(_mqttPresencePrefix, 0, sizeof(_mqttPresencePrefix));
+    strcpy(_mqttPresencePrefix, path);
 }
 
+void Network::disableAutoRestarts()
+{
+    _networkTimeout = 0;
+    _restartOnDisconnect = false;
+}
+
+int Network::mqttConnectionState()
+{
+    return _mqttConnectionState;
+}
+
+bool Network::encryptionSupported()
+{
+    return _device->supportsEncryption();
+}
+
+const String Network::networkDeviceName() const
+{
+    return _device->deviceName();
+}
 
 void Network::publishFloat(const char* topic, const float value, const uint8_t precision)
 {
@@ -321,7 +478,7 @@ void Network::publishFloat(const char* topic, const float value, const uint8_t p
     dtostrf(value, 0, precision, str);
     char path[200] = {0};
     buildMqttPath(topic, path);
-    _device->mqttClient()->publish(path, str, true);
+    _device->mqttPublish(path, MQTT_QOS_LEVEL, true, str);
 }
 
 void Network::publishInt(const char *topic, const int value)
@@ -330,7 +487,7 @@ void Network::publishInt(const char *topic, const int value)
     itoa(value, str, 10);
     char path[200] = {0};
     buildMqttPath(topic, path);
-    _device->mqttClient()->publish(path, str, true);
+    _device->mqttPublish(path, MQTT_QOS_LEVEL, true, str);
 }
 
 void Network::publishUInt(const char *topic, const unsigned int value)
@@ -339,7 +496,7 @@ void Network::publishUInt(const char *topic, const unsigned int value)
     utoa(value, str, 10);
     char path[200] = {0};
     buildMqttPath(topic, path);
-    _device->mqttClient()->publish(path, str, true);
+    _device->mqttPublish(path, MQTT_QOS_LEVEL, true, str);
 }
 
 void Network::publishULong(const char *topic, const unsigned long value)
@@ -348,7 +505,7 @@ void Network::publishULong(const char *topic, const unsigned long value)
     utoa(value, str, 10);
     char path[200] = {0};
     buildMqttPath(topic, path);
-    _device->mqttClient()->publish(path, str, true);
+    _device->mqttPublish(path, MQTT_QOS_LEVEL, true, str);
 }
 
 void Network::publishBool(const char *topic, const bool value)
@@ -357,14 +514,14 @@ void Network::publishBool(const char *topic, const bool value)
     str[0] = value ? '1' : '0';
     char path[200] = {0};
     buildMqttPath(topic, path);
-    _device->mqttClient()->publish(path, str, true);
+    _device->mqttPublish(path, MQTT_QOS_LEVEL, true, str);
 }
 
 bool Network::publishString(const char *topic, const char *value)
 {
     char path[200] = {0};
     buildMqttPath(topic, path);
-    return _device->mqttClient()->publish(path, value, true);
+    return _device->mqttPublish(path, MQTT_QOS_LEVEL, true, value) > 0;
 }
 
 void Network::publishPin(const char *topic, int value)
@@ -372,14 +529,34 @@ void Network::publishPin(const char *topic, int value)
     _pinStates[topic] = value;
 }
 
+void Network::publishPresenceDetection(char *csv)
+{
+    _presenceCsv = csv;
+}
+
+const NetworkDeviceType Network::networkDeviceType()
+{
+    return _networkDeviceType;
+}
+
+uint16_t Network::subscribe(const char *topic, uint8_t qos)
+{
+    return _device->mqttSubscribe(topic, qos);
+}
+
+void Network::setKeepAliveCallback(std::function<void()> reconnectTick)
+{
+    _keepAliveCallback = reconnectTick;
+}
+
+void Network::addReconnectedCallback(std::function<void()> reconnectedCallback)
+{
+    _reconnectedCallbacks.push_back(reconnectedCallback);
+}
+
 bool Network::comparePrefixedPath(const char *fullPath, const char *subPath)
 {
     char prefixedPath[500];
     buildMqttPath(subPath, prefixedPath);
     return strcmp(fullPath, prefixedPath) == 0;
-}
-
-void Network::publishPresenceDetection(char *csv)
-{
-    _presenceCsv = csv;
 }
