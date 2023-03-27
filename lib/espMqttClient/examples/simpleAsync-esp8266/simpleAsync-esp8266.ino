@@ -1,5 +1,5 @@
 #include <ESP8266WiFi.h>
-#include <Ticker.h>
+
 #include <espMqttClientAsync.h>
 
 #define WIFI_SSID "yourSSID"
@@ -11,7 +11,8 @@
 WiFiEventHandler wifiConnectHandler;
 WiFiEventHandler wifiDisconnectHandler;
 espMqttClientAsync mqttClient;
-Ticker reconnectTimer;
+bool reconnectMqtt = false;
+uint32_t lastReconnect = 0;
 
 void connectToWiFi() {
   Serial.println("Connecting to Wi-Fi...");
@@ -20,18 +21,24 @@ void connectToWiFi() {
 
 void connectToMqtt() {
   Serial.println("Connecting to MQTT...");
-  mqttClient.connect();
+  if (!mqttClient.connect()) {
+    reconnectMqtt = true;
+    lastReconnect = millis();
+    Serial.println("Connecting failed.");
+  } else {
+    reconnectMqtt = false;
+  }
 }
 
 void onWiFiConnect(const WiFiEventStationModeGotIP& event) {
+  (void) event;
   Serial.println("Connected to Wi-Fi.");
   connectToMqtt();
 }
 
 void onWiFiDisconnect(const WiFiEventStationModeDisconnected& event) {
+  (void) event;
   Serial.println("Disconnected from Wi-Fi.");
-  reconnectTimer.detach(); // ensure we don't reconnect to MQTT while reconnecting to Wi-Fi
-  reconnectTimer.once(5, connectToWiFi);
 }
 
 void onMqttConnect(bool sessionPresent) {
@@ -55,7 +62,8 @@ void onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
   Serial.printf("Disconnected from MQTT: %u.\n", static_cast<uint8_t>(reason));
 
   if (WiFi.isConnected()) {
-    reconnectTimer.once(5, connectToMqtt);
+    reconnectMqtt = true;
+    lastReconnect = millis();
   }
 }
 
@@ -76,6 +84,7 @@ void onMqttUnsubscribe(uint16_t packetId) {
 }
 
 void onMqttMessage(const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t* payload, size_t len, size_t index, size_t total) {
+  (void) payload;
   Serial.println("Publish received.");
   Serial.print("  topic: ");
   Serial.println(topic);
@@ -104,6 +113,8 @@ void setup() {
   Serial.println();
   Serial.println();
 
+  WiFi.setAutoConnect(false);
+  WiFi.setAutoReconnect(true);
   wifiConnectHandler = WiFi.onStationModeGotIP(onWiFiConnect);
   wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWiFiDisconnect);
 
@@ -119,5 +130,9 @@ void setup() {
 }
 
 void loop() {
-  // nothing to do here
+  static uint32_t currentMillis = millis();
+
+  if (reconnectMqtt && currentMillis - lastReconnect > 5000) {
+    connectToMqtt();
+  }
 }

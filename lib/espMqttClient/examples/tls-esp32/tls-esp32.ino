@@ -1,5 +1,5 @@
 #include <WiFi.h>
-#include <Ticker.h>
+
 #include <espMqttClient.h>
 
 #define WIFI_SSID "yourSSID"
@@ -15,8 +15,10 @@ const char rootCA[] = \
   " add your certificate here \n" \
   "-----END CERTIFICATE-----\n";
 
-espMqttClientSecure mqttClient;
-Ticker reconnectTimer;
+espMqttClientSecure mqttClient(espMqttClientTypes::UseInternalTask::NO);
+static TaskHandle_t taskHandle;
+bool reconnectMqtt = false;
+uint32_t lastReconnect = 0;
 
 void connectToWiFi() {
   Serial.println("Connecting to Wi-Fi...");
@@ -25,7 +27,13 @@ void connectToWiFi() {
 
 void connectToMqtt() {
   Serial.println("Connecting to MQTT...");
-  mqttClient.connect();
+  if (!mqttClient.connect()) {
+    reconnectMqtt = true;
+    lastReconnect = millis();
+    Serial.println("Connecting failed.");
+  } else {
+    reconnectMqtt = false;
+  }
 }
 
 void WiFiEvent(WiFiEvent_t event) {
@@ -39,7 +47,6 @@ void WiFiEvent(WiFiEvent_t event) {
       break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
       Serial.println("WiFi lost connection");
-      reconnectTimer.once(5, connectToWiFi);
       break;
     default:
       break;
@@ -64,7 +71,8 @@ void onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
   Serial.printf("Disconnected from MQTT: %u.\n", static_cast<uint8_t>(reason));
 
   if (WiFi.isConnected()) {
-    reconnectTimer.once(5, connectToMqtt);
+    reconnectMqtt = true;
+    lastReconnect = millis();
   }
 }
 
@@ -85,6 +93,7 @@ void onMqttUnsubscribe(uint16_t packetId) {
 }
 
 void onMqttMessage(const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t* payload, size_t len, size_t index, size_t total) {
+  (void) payload;
   Serial.println("Publish received.");
   Serial.print("  topic: ");
   Serial.println(topic);
@@ -108,11 +117,19 @@ void onMqttPublish(uint16_t packetId) {
   Serial.println(packetId);
 }
 
+void networkingTask() {
+  for (;;) {
+    mqttClient.loop();
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println();
   Serial.println();
 
+  WiFi.setAutoConnect(false);
+  WiFi.setAutoReconnect(true);
   WiFi.onEvent(WiFiEvent);
 
   //mqttClient.setInsecure();
@@ -127,19 +144,27 @@ void setup() {
   mqttClient.setServer(MQTT_HOST, MQTT_PORT);
   mqttClient.setCleanSession(true);
 
+  xTaskCreatePinnedToCore((TaskFunction_t)networkingTask, "mqttclienttask", 5120, nullptr, 1, &taskHandle, 0);
+
   connectToWiFi();
 }
 
 void loop() {
+  static uint32_t currentMillis = millis();
+
+  if (reconnectMqtt && currentMillis - lastReconnect > 5000) {
+    connectToMqtt();
+  }
+
   static uint32_t lastMillis = 0;
-  if (millis() - lastMillis > 5000) {
-    lastMillis = millis();
+  if (currentMillis - lastMillis > 5000) {
+    lastMillis = currentMillis;
     Serial.printf("heap: %u\n", ESP.getFreeHeap());
   }
 
   static uint32_t millisDisconnect = 0;
-  if (millis() - millisDisconnect > 60000) {
-    millisDisconnect = millis();
+  if (currentMillis - millisDisconnect > 60000) {
+    millisDisconnect = currentMillis;
     mqttClient.disconnect();
   }
 }

@@ -2,6 +2,7 @@
 
 #include "MqttClient.h"
 #include "MqttClientSetup.h"
+#include "IPConfiguration.h"
 
 enum class ReconnectStatus
 {
@@ -13,8 +14,9 @@ enum class ReconnectStatus
 class NetworkDevice
 {
 public:
-    explicit NetworkDevice(const String& hostname)
-    : _hostname(hostname)
+    explicit NetworkDevice(const String& hostname, const IPConfiguration* ipConfiguration)
+    : _hostname(hostname),
+      _ipConfiguration(ipConfiguration)
     {}
 
     virtual const String deviceName() const = 0;
@@ -38,14 +40,17 @@ public:
     virtual void mqttSetServer(const char* host, uint16_t port) = 0;
     virtual bool mqttConnect() = 0;
     virtual bool mqttDisonnect(bool force) = 0;
+    virtual void setWill(const char* topic, uint8_t qos, bool retain, const char* payload) = 0;
     virtual void mqttSetCredentials(const char* username, const char* password) = 0;
     virtual void mqttOnMessage(espMqttClientTypes::OnMessageCallback callback) = 0;
     virtual void mqttOnConnect(espMqttClientTypes::OnConnectCallback callback) = 0;
     virtual void mqttOnDisconnect(espMqttClientTypes::OnDisconnectCallback callback) = 0;
+    virtual void disableMqtt() = 0;
 
     virtual uint16_t mqttSubscribe(const char* topic, uint8_t qos) = 0;
 
 protected:
     const uint16_t _mqttMaxBufferSize = 6144;
     const String _hostname;
+    const IPConfiguration* _ipConfiguration = nullptr;
 };

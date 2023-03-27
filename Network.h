@@ -5,6 +5,7 @@
 #include <map>
 #include "networkDevices/NetworkDevice.h"
 #include "MqttReceiver.h"
+#include "networkDevices/IPConfiguration.h"
 
 enum class NetworkDeviceType
 {
@@ -89,6 +90,7 @@ private:
     long _rssiPublishInterval = 0;
     std::function<void()> _keepAliveCallback = nullptr;
     std::vector<std::function<void()>> _reconnectedCallbacks;
+    const IPConfiguration _ipConfiguration;
 
     std::map<const char*, int> _pinStates;
 

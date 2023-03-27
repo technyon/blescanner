@@ -28,7 +28,7 @@ include_directories(${PROJECT_NAME}
         lib/AsyncTCP/src
         )
 
-file(GLOB SRCFILES
+set(SRCFILES
         Pins.h
         Network.cpp
         MqttReceiver.h
@@ -37,6 +37,7 @@ file(GLOB SRCFILES
         networkDevices/W5500Device.cpp
         networkDevices/ClientSyncW5500.cpp
         networkDevices/espMqttClientW5500.cpp
+        networkDevices/IPConfiguration.cpp
         MqttTopics.h
         Logger.cpp
         RestartReason.h

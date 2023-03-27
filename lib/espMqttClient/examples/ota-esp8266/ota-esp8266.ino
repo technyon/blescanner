@@ -1,6 +1,6 @@
 #include <ESP8266WiFi.h>
 #include <Updater.h>
-#include <Ticker.h>
+
 #include <espMqttClient.h>
 
 #define WIFI_SSID "yourSSID"
@@ -14,7 +14,8 @@
 WiFiEventHandler wifiConnectHandler;
 WiFiEventHandler wifiDisconnectHandler;
 espMqttClient mqttClient;
-Ticker reconnectTimer;
+bool reconnectMqtt = false;
+uint32_t lastReconnect = 0;
 bool disconnectFlag = false;
 bool restartFlag = false;
 
@@ -25,18 +26,24 @@ void connectToWiFi() {
 
 void connectToMqtt() {
   Serial.println("Connecting to MQTT...");
-  mqttClient.connect();
+  if (!mqttClient.connect()) {
+    reconnectMqtt = true;
+    lastReconnect = millis();
+    Serial.println("Connecting failed.");
+  } else {
+    reconnectMqtt = false;
+  }
 }
 
 void onWiFiConnect(const WiFiEventStationModeGotIP& event) {
+  (void) event;
   Serial.println("Connected to Wi-Fi.");
   connectToMqtt();
 }
 
 void onWiFiDisconnect(const WiFiEventStationModeDisconnected& event) {
+  (void) event;
   Serial.println("Disconnected from Wi-Fi.");
-  reconnectTimer.detach(); // ensure we don't reconnect to MQTT while reconnecting to Wi-Fi
-  reconnectTimer.once(5, connectToWiFi);
 }
 
 void onMqttConnect(bool sessionPresent) {
@@ -57,7 +64,8 @@ void onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
   }
   
   if (WiFi.isConnected()) {
-    reconnectTimer.once(5, connectToMqtt);
+    reconnectMqtt = true;
+    lastReconnect = millis();
   }
 }
 
@@ -102,6 +110,7 @@ void handleUpdate(const uint8_t* payload, size_t length, size_t index, size_t to
 }
 
 void onMqttMessage(const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t* payload, size_t len, size_t index, size_t total) {
+  (void) properties;
   if (strcmp(UPDATE_TOPIC, topic) != 0) {
     Serial.println("Topic mismatch");
     return;
@@ -114,6 +123,8 @@ void setup() {
   Serial.println();
   Serial.println();
 
+  WiFi.setAutoConnect(false);
+  WiFi.setAutoReconnect(true);
   wifiConnectHandler = WiFi.onStationModeGotIP(onWiFiConnect);
   wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWiFiDisconnect);
 
@@ -127,16 +138,22 @@ void setup() {
 }
 
 void loop() {
-  mqttClient.loop();
-
-  if (disconnectFlag) {
-    // it's safe to call this multiple times
-    mqttClient.disconnect();
-  }
-
   if (restartFlag) {
     Serial.println("Rebooting... See you next time!");
     Serial.flush();
     ESP.reset();
+  }
+
+  static uint32_t currentMillis = millis();
+
+  mqttClient.loop();
+
+  if (!disconnectFlag && reconnectMqtt && currentMillis - lastReconnect > 5000) {
+    connectToMqtt();
+  }
+
+  if (disconnectFlag) {
+    // it's safe to call this multiple times
+    mqttClient.disconnect();
   }
 }

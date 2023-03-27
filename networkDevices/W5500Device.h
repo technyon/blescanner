@@ -15,7 +15,7 @@ enum class W5500Variant
 class W5500Device : public NetworkDevice
 {
 public:
-    explicit W5500Device(const String& hostname, Preferences* _preferences, int variant);
+    explicit W5500Device(const String& hostname, Preferences* _preferences, const IPConfiguration* ipConfiguration, int variant);
     ~W5500Device();
 
     const String deviceName() const override;
@@ -49,6 +49,8 @@ public:
 
     bool mqttDisonnect(bool force) override;
 
+    void setWill(const char *topic, uint8_t qos, bool retain, const char *payload) override;
+
     void mqttSetCredentials(const char *username, const char *password) override;
 
     void mqttOnMessage(espMqttClientTypes::OnMessageCallback callback) override;
@@ -58,6 +60,8 @@ public:
     void mqttOnDisconnect(espMqttClientTypes::OnDisconnectCallback callback) override;
 
     uint16_t mqttSubscribe(const char *topic, uint8_t qos) override;
+
+    void disableMqtt() override;
 
 private:
     void resetDevice();
@@ -71,6 +75,8 @@ private:
     bool _hasDHCPAddress = false;
     char* _path;
     W5500Variant _variant;
+    bool _lastConnected = false;
+    bool _mqttEnabled = true;
 
     byte _mac[6];
 };

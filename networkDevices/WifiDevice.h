@@ -6,11 +6,12 @@
 #include "NetworkDevice.h"
 #include "WiFiManager.h"
 #include "espMqttClient.h"
+#include "IPConfiguration.h"
 
 class WifiDevice : public NetworkDevice
 {
 public:
-    WifiDevice(const String& hostname, Preferences* _preferences);
+    WifiDevice(const String& hostname, Preferences* _preferences, const IPConfiguration* ipConfiguration);
 
     const String deviceName() const override;
 
@@ -42,6 +43,8 @@ public:
 
     bool mqttDisonnect(bool force) override;
 
+    void setWill(const char *topic, uint8_t qos, bool retain, const char *payload) override;
+
     void mqttSetCredentials(const char *username, const char *password) override;
 
     void mqttOnMessage(espMqttClientTypes::OnMessageCallback callback) override;
@@ -51,6 +54,8 @@ public:
     void mqttOnDisconnect(espMqttClientTypes::OnDisconnectCallback callback) override;
 
     uint16_t mqttSubscribe(const char *topic, uint8_t qos) override;
+
+    void disableMqtt() override;
 
 private:
     static void clearRtcInitVar(WiFiManager*);
@@ -65,6 +70,7 @@ private:
     bool _startAp = false;
     char* _path;
     bool _useEncryption = false;
+    bool _mqttEnabled = true;
 
     char _ca[TLS_CA_MAX_SIZE] = {0};
     char _cert[TLS_CERT_MAX_SIZE] = {0};

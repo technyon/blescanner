@@ -51,15 +51,15 @@ void Network::setupDevice()
     {
         case NetworkDeviceType::W5500:
             Log->println(F("Network device: W5500"));
-            _device = new W5500Device(_hostname, _preferences, (int)W5500Variant::Generic);
+            _device = new W5500Device(_hostname, _preferences, &_ipConfiguration, NETWORK_SELECT);
             break;
         case NetworkDeviceType::WiFi:
             Log->println(F("Network device: Builtin WiFi"));
-            _device = new WifiDevice(_hostname, _preferences);
+            _device = new WifiDevice(_hostname, _preferences, &_ipConfiguration);
             break;
         default:
             Log->println(F("Unknown network device type, defaulting to WiFi"));
-            _device = new WifiDevice(_hostname, _preferences);
+            _device = new WifiDevice(_hostname, _preferences, &_ipConfiguration);
             break;
     }
 

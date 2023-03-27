@@ -8,8 +8,8 @@
 
 RTC_NOINIT_ATTR char WiFiDevice_reconfdetect[17];
 
-WifiDevice::WifiDevice(const String& hostname, Preferences* _preferences)
-: NetworkDevice(hostname)
+WifiDevice::WifiDevice(const String& hostname, Preferences* _preferences, const IPConfiguration* ipConfiguration)
+: NetworkDevice(hostname, ipConfiguration)
 {
     _startAp = strcmp(WiFiDevice_reconfdetect, "reconfigure_wifi") == 0;
 
@@ -25,7 +25,7 @@ WifiDevice::WifiDevice(const String& hostname, Preferences* _preferences)
     {
         Log->println(F("MQTT over TLS."));
         Log->println(_ca);
-        _mqttClientSecure = new espMqttClientSecure();
+        _mqttClientSecure = new espMqttClientSecure(espMqttClientTypes::UseInternalTask::YES);
         _mqttClientSecure->setCACert(_ca);
         if(crtLength > 1 && keyLength > 1) // length is 1 when empty
         {
@@ -35,22 +35,12 @@ WifiDevice::WifiDevice(const String& hostname, Preferences* _preferences)
             _mqttClientSecure->setCertificate(_cert);
             _mqttClientSecure->setPrivateKey(_key);
         }
-    } else
+    }
+    else
     {
         Log->println(F("MQTT without TLS."));
-        _mqttClient = new espMqttClient();
+        _mqttClient = new espMqttClient(espMqttClientTypes::UseInternalTask::YES);
     }
-
-//    if(_preferences->getBool(preference_mqtt_log_enabled))
-//    {
-//        _path = new char[200];
-//        memset(_path, 0, sizeof(_path));
-//
-//        String pathStr = _preferences->getString(preference_mqtt_lock_path);
-//        pathStr.concat(mqtt_topic_log);
-//        strcpy(_path, pathStr.c_str());
-//        Log = new MqttLogger(this, _path, MqttLoggerMode::MqttAndSerial);
-//    }
 }
 
 const String WifiDevice::deviceName() const
@@ -68,6 +58,11 @@ void WifiDevice::initialize()
     _wm.setShowInfoUpdate(false);
     _wm.setMenu(wm_menu);
     _wm.setHostname(_hostname);
+
+    if(!_ipConfiguration->dhcpEnabled())
+    {
+        _wm.setSTAStaticIPConfig(_ipConfiguration->ipAddress(), _ipConfiguration->defaultGateway(), _ipConfiguration->subnet(), _ipConfiguration->dnsServer());
+    }
 
     _wm.setAPCallback(clearRtcInitVar);
 
@@ -142,7 +137,16 @@ ReconnectStatus WifiDevice::reconnect()
 
 void WifiDevice::update()
 {
-
+    if(_mqttEnabled)
+    {
+        if (_useEncryption)
+        {
+            _mqttClientSecure->loop();
+        } else
+        {
+            _mqttClient->loop();
+        }
+    }
 }
 
 void WifiDevice::onDisconnected()
@@ -259,6 +263,18 @@ bool WifiDevice::mqttDisonnect(bool force)
     }
 }
 
+void WifiDevice::setWill(const char *topic, uint8_t qos, bool retain, const char *payload)
+{
+    if(_useEncryption)
+    {
+        _mqttClientSecure->setWill(topic, qos, retain, payload);
+    }
+    else
+    {
+        _mqttClient->setWill(topic, qos, retain, payload);
+    }
+}
+
 void WifiDevice::mqttSetCredentials(const char *username, const char *password)
 {
     if(_useEncryption)
@@ -319,4 +335,17 @@ uint16_t WifiDevice::mqttSubscribe(const char *topic, uint8_t qos)
     {
         return _mqttClient->subscribe(topic, qos);
     }
+}
+
+void WifiDevice::disableMqtt()
+{
+    if (_useEncryption)
+    {
+        _mqttClientSecure->disconnect();
+    } else
+    {
+        _mqttClient->disconnect();
+    }
+
+    _mqttEnabled = false;
 }
