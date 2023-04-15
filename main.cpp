@@ -82,8 +82,8 @@ void setupTasks()
 
     xTaskCreatePinnedToCore(networkTask, "ntw", 8192, NULL, 3, NULL, 1);
     xTaskCreatePinnedToCore(bleScannerTask, "scan", 4096, NULL, 2, NULL, 1);
-    xTaskCreatePinnedToCore(presenceDetectionTask, "prdet", 768, NULL, 5, NULL, 1);
-    xTaskCreatePinnedToCore(checkMillisTask, "mlchk", 640, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore(presenceDetectionTask, "prdet", 1024, NULL, 5, NULL, 1);
+    xTaskCreatePinnedToCore(checkMillisTask, "mlchk", 768, NULL, 1, NULL, 1);
 }
 
 uint32_t getRandomId()

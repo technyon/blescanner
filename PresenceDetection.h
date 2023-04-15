@@ -32,6 +32,8 @@ private:
     Preferences* _preferences;
     BleScanner::Scanner* _bleScanner;
     Network* _network;
+    int _restartBeaconTimeout = 0; // seconds
+    int _lastBeaconTs = 1;
     char* _csv = {0};
     std::map<long long, PdDevice> _devices;
     int _timeout = 20000;

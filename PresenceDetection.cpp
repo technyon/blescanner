@@ -32,12 +32,34 @@ PresenceDetection::~PresenceDetection()
 
 void PresenceDetection::initialize()
 {
+    _restartBeaconTimeout = _preferences->getInt(preference_restart_ble_beacon_lost);
+
+    if(_restartBeaconTimeout < 20)
+    {
+        _restartBeaconTimeout = 60;
+        _preferences->putInt(preference_restart_ble_beacon_lost, _restartBeaconTimeout);
+    }
+
     _bleScanner->subscribe(this);
 }
 
 void PresenceDetection::update()
 {
     delay(2000);
+
+    unsigned long ts = millis();
+
+    if(_restartBeaconTimeout > 0 &&
+       ts > 60000 &&
+       _lastBeaconTs > 0 &&
+       (ts - _lastBeaconTs > _restartBeaconTimeout * 1000))
+    {
+        Serial.print("No BLE beacon received from the opener for ");
+        Serial.print((millis() - _lastBeaconTs / 1000));
+        Serial.println(" seconds, restarting device.");
+        delay(200);
+        ESP.restart();
+    }
 
     if(_timeout < 0) return;
     memset(_csv, 0, presence_detection_buffer_size);
@@ -50,7 +72,6 @@ void PresenceDetection::update()
     }
 
     _csvIndex = 0;
-    long ts = millis();
     for(auto it : _devices)
     {
         if(ts - _timeout < it.second.timestamp)
@@ -66,9 +87,6 @@ void PresenceDetection::update()
     }
 
     _csv[_csvIndex-1] = 0x00;
-
-//    Serial.print("Devices found: ");
-//    Serial.println(_devices.size());
     _network->publishPresenceDetection(_csv);
 }
 
@@ -117,6 +135,7 @@ void PresenceDetection::onResult(NimBLEAdvertisedDevice *device)
     std::string addressStr = device->getAddress().toString();
     char addrArrComp[13] = {0};
 
+    _lastBeaconTs = millis();
 //    Serial.println(addressStr.c_str());
 
     addrArrComp[0] = addressStr.at(0);
@@ -181,17 +200,4 @@ void PresenceDetection::onResult(NimBLEAdvertisedDevice *device)
             it->second.rssi = device->getRSSI();
         }
     }
-
-//    if(device->haveName())
-//    {
-//        Serial.print(" | ");
-//        Serial.print(device->getName().c_str());
-//        if(device->haveRSSI())
-//        {
-//            Serial.print(" | ");
-//            Serial.print(device->getRSSI());
-//        }
-//    }
-//    Serial.println();
-
 }

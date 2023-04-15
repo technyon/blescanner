@@ -12,6 +12,7 @@
 #define preference_hostname "hostname"
 #define preference_network_timeout "nettmout"
 #define preference_restart_on_disconnect "restdisc"
+#define preference_restart_ble_beacon_lost "rstbcn"
 #define preference_cred_user "crdusr"
 #define preference_cred_password "crdpass"
 #define preference_gpio_enabled "gpioena"

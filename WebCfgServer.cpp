@@ -240,6 +240,11 @@ bool WebCfgServer::processArgs(String& message)
             _preferences->putInt(preference_presence_detection_timeout, value.toInt());
             configChanged = true;
         }
+        else if(key == "RSBC")
+        {
+            _preferences->putInt(preference_restart_ble_beacon_lost, value.toInt());
+            configChanged = true;
+        }
         else if(key == "GPLCK")
         {
             _preferences->putBool(preference_gpio_enabled, (value == "1"));
@@ -401,6 +406,7 @@ void WebCfgServer::buildMqttConfigHtml(String &response)
     printInputField(response, "PRDTMO", "Presence detection timeout (seconds; -1 to disable)", _preferences->getInt(preference_presence_detection_timeout), 10);
     printInputField(response, "NETTIMEOUT", "Network Timeout until restart (seconds; -1 to disable)", _preferences->getInt(preference_network_timeout), 5);
     printCheckBox(response, "RSTDISC", "Restart on disconnect", _preferences->getBool(preference_restart_on_disconnect));
+    printInputField(response, "RSBC", "Restart if bluetooth beacons not received (seconds; -1 to disable)", _preferences->getInt(preference_restart_ble_beacon_lost), 10);
     response.concat("</table>");
     response.concat("* If no encryption is configured for the MQTT broker, leave empty.<br>");
 
